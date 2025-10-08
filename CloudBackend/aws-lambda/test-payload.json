@@ -1,0 +1,11 @@
+{
+  "userId": "user_001",
+  "timestamp": 1696723200000,
+  "metrics": {
+    "heartRate": 155.5,
+    "steps": 1000,
+    "calories": 50.2,
+    "distance": 800.5
+  },
+  "deviceId": "wear_device_001"
+}
