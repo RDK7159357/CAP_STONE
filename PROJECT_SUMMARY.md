@@ -1,7 +1,26 @@
 # Real-Time Health Monitoring System - Project Summary
 
 ## 🎯 Project Vision
-A comprehensive health monitoring solution that leverages Wear OS smartwatches, cloud computing, and AI/ML to provide real-time anomaly detection and early warning for health abnormalities.
+A **hybrid edge-cloud** health monitoring solution that combines on-device ML inference for instant, privacy-preserving alerts with cloud-based deep learning for continuous model improvement. The best of both worlds: edge computing speed + cloud ML intelligence.
+
+## 🌟 What Makes This Project Unique
+
+**Hybrid Edge-Cloud ML with Personalized Context-Awareness**
+
+While existing solutions (Fitbit, Apple Watch, Samsung) rely on:
+- ❌ Fixed population-based thresholds (HR > 100 = anomaly)
+- ❌ Cloud-only ML inference (privacy concerns, latency, requires internet)
+- ❌ OR basic edge rules (no learning, not personalized)
+- ❌ Generic alerts without personal context
+
+**Our hybrid innovation delivers:**
+- ✅ **Edge ML inference**: TensorFlow Lite models run on watch (< 100ms response)
+- ✅ **Personalized learning**: LSTM models trained on YOUR data patterns
+- ✅ **ML-powered activity context**: Neural network classifies 6+ activity states
+- ✅ **Cloud intelligence**: Deep learning models train on historical data
+- ✅ **Federated learning**: Models improve from population data without privacy loss
+- ✅ **Offline-capable**: Works without internet, intelligent sync when connected
+- ✅ **Continuous improvement**: Weekly model retraining and deployment
 
 ## 📁 Project Structure
 
@@ -116,11 +135,21 @@ CAP_STONE/
 - Efficient batching to reduce network calls
 - WorkManager for reliable scheduling
 
-### 3. ML-Powered Anomaly Detection
-- **Baseline**: Rule-based thresholds
-- **Advanced**: LSTM Autoencoder
-- Real-time inference in cloud
-- Personalized anomaly thresholds
+### 3. Hybrid Edge-Cloud ML Pipeline
+**On-Device ML (Edge Computing):**
+- **TFLite Activity Classifier**: Neural network for real-time activity recognition (< 50ms)
+- **TFLite Anomaly Detector**: Lightweight LSTM for instant pattern analysis (< 100ms)
+- **Personal Baseline Engine**: Statistical learning from 7-day rolling window
+- **Context-Aware Inference**: Combines ML outputs with personal baselines
+- **Offline-capable**: All detection works without internet connection
+
+**Cloud ML (Training & Optimization):**
+- **LSTM Autoencoder**: Deep learning for complex anomaly pattern discovery
+- **Time-Series Forecasting**: Predict potential anomalies hours in advance
+- **Attention Mechanisms**: Identify which vital signs matter most for each user
+- **Model Optimization**: Quantization + pruning for edge deployment
+- **Federated Learning**: Improve models across users without data sharing
+- **Continuous Improvement**: Weekly retraining with new data
 
 ### 4. Smart Alerts
 - Push notifications for detected anomalies
@@ -136,36 +165,42 @@ CAP_STONE/
 
 ## 📊 Data Flow
 
+### Primary Flow (On-Device - Edge Computing)
 ```
-1. Wear OS Watch
+1. Wear OS Watch (ALL PROCESSING HERE)
    ↓ (Health Services API)
-   Sensors (HR, Steps, Calories)
+   Sensors (HR, Steps, Calories, Accelerometer)
    ↓ (Every 5 seconds)
-   Room Database (Local Buffer)
-   ↓ (WorkManager - Every 1-2 min)
+   Activity Context Classifier
+   ├─→ State: Resting / Active / Sleeping
+   ↓
+   Personal Baseline Engine (7-day window)
+   ├─→ Your Normal Ranges per Activity
+   ↓
+   Context-Aware Anomaly Detector
+   ├─→ Compare current vs. your baseline
+   ↓
+   LOCAL DECISION (No Cloud!)
+   ↓ (If anomaly detected)
+   Immediate On-Device Alert ⚡
+   ↓
+   Room Database (Local Storage)
+```
 
-2. Cloud Backend
+### Secondary Flow (Optional Cloud Backup)
+```
+2. Periodic Sync (Every 15-30 min)
+   Watch → Cloud Backend
+   ↓
    API Gateway
    ↓
-   Lambda Function (Validation)
+   Lambda (Storage only)
    ↓
-   DynamoDB (Time-series storage)
-   ↓ (DynamoDB Streams)
-
-3. ML Pipeline
-   Real-time Processor
-   ↓
-   LSTM Autoencoder
-   ↓
-   Anomaly Detection
-   ↓ (If anomaly detected)
-
-4. Alert System
-   SNS / Firebase Cloud Messaging
+   DynamoDB (Historical data)
    ↓
    Mobile Dashboard
-   ↓
-   User Notification
+   ├─→ Long-term trend visualization
+   └─→ Export reports
 ```
 
 ## 🎓 Learning Outcomes

@@ -115,22 +115,191 @@ dependencies {
 }
 ```
 
-### Step 1.4: Test with Synthetic Data
+### Step 1.4: Setup TensorFlow Lite for Wear OS
+
+Add TFLite dependencies in `build.gradle.kts`:
+```kotlin
+dependencies {
+    // TensorFlow Lite
+    implementation("org.tensorflow:tensorflow-lite:2.14.0")
+    implementation("org.tensorflow:tensorflow-lite-gpu:2.14.0")
+    implementation("org.tensorflow:tensorflow-lite-support:0.4.4")
+}
+```
+
+Create `TFLiteModelLoader.kt`:
+```kotlin
+class TFLiteModelLoader(private val context: Context) {
+    private var activityClassifier: Interpreter? = null
+    private var anomalyDetector: Interpreter? = null
+    
+    fun loadModels() {
+        activityClassifier = Interpreter(
+            loadModelFile("activity_classifier.tflite")
+        )
+        anomalyDetector = Interpreter(
+            loadModelFile("anomaly_detector.tflite")
+        )
+    }
+    
+    private fun loadModelFile(filename: String): ByteBuffer {
+        val fileDescriptor = context.assets.openFd(filename)
+        val inputStream = FileInputStream(fileDescriptor.fileDescriptor)
+        val fileChannel = inputStream.channel
+        val startOffset = fileDescriptor.startOffset
+        val declaredLength = fileDescriptor.declaredLength
+        return fileChannel.map(FileChannel.MapMode.READ_ONLY, startOffset, declaredLength)
+    }
+}
+```
+
+### Step 1.5: Implement ML-Based Activity Classifier
+
+Create `MLActivityClassifier.kt`:
+```kotlin
+class MLActivityClassifier(private val interpreter: Interpreter) {
+    // Input: 100 samples x 6 features (accel_x, accel_y, accel_z, gyro_x, gyro_y, gyro_z)
+    private val inputBuffer = Array(1) { Array(100) { FloatArray(6) } }
+    private val outputBuffer = Array(1) { FloatArray(6) } // 6 activity classes
+    
+    fun classifyActivity(sensorWindow: List<SensorData>): ActivityState {
+        // Prepare input tensor
+        sensorWindow.forEachIndexed { i, data ->
+            inputBuffer[0][i][0] = data.accelX
+            inputBuffer[0][i][1] = data.accelY
+            inputBuffer[0][i][2] = data.accelZ
+            inputBuffer[0][i][3] = data.gyroX
+            inputBuffer[0][i][4] = data.gyroY
+            inputBuffer[0][i][5] = data.gyroZ
+        }
+        
+        // Run inference
+        interpreter.run(inputBuffer, outputBuffer)
+        
+        // Get prediction
+        val predictions = outputBuffer[0]
+        val activityIndex = predictions.indices.maxByOrNull { predictions[it] } ?: 0
+        
+        return ActivityState.values()[activityIndex]
+    }
+}
+
+enum class ActivityState {
+    SLEEPING, RESTING, WALKING, RUNNING, EXERCISING, OTHER
+}
+```
+
+### Step 1.6: Implement Personal Baseline Engine
+
+Create `PersonalBaselineEngine.kt`:
+```kotlin
+class PersonalBaselineEngine {
+    // Store 7-day rolling window
+    private val baselineWindow = mutableListOf<HealthSnapshot>()
+    
+    fun updateBaseline(data: HealthSnapshot) {
+        baselineWindow.add(data)
+        // Keep only last 7 days
+        if (baselineWindow.size > 7 * 24 * 12) { // 5-sec intervals
+            baselineWindow.removeFirst()
+        }
+    }
+    
+    fun getPersonalRanges(activityState: ActivityState): HealthRanges {
+        val filtered = baselineWindow.filter { it.activity == activityState }
+        return HealthRanges(
+            hrMin = filtered.map { it.heartRate }.percentile(5),
+            hrMax = filtered.map { it.heartRate }.percentile(95),
+            // ... similar for other metrics
+        )
+    }
+}
+```
+
+### Step 1.7: Implement ML-Powered Anomaly Detector
+
+Create `MLAnomalyDetector.kt`:
+```kotlin
+class MLAnomalyDetector(
+    private val interpreter: Interpreter,
+    private val baselineEngine: PersonalBaselineEngine
+) {
+    // Input: 50 timesteps x 4 features (hr, steps, activity_encoded, baseline_deviation)
+    private val inputBuffer = Array(1) { Array(50) { FloatArray(4) } }
+    private val outputBuffer = Array(1) { FloatArray(1) } // Anomaly score
+    
+    fun detectAnomaly(
+        timeSeriesWindow: List<HealthSnapshot>,
+        activity: ActivityState
+    ): AnomalyResult? {
+        val baseline = baselineEngine.getPersonalRanges(activity)
+        
+        // Prepare input: combine raw data + baseline deviation
+        timeSeriesWindow.forEachIndexed { i, snapshot ->
+            inputBuffer[0][i][0] = snapshot.heartRate.toFloat()
+            inputBuffer[0][i][1] = snapshot.steps.toFloat()
+            inputBuffer[0][i][2] = activity.ordinal.toFloat()
+            inputBuffer[0][i][3] = (snapshot.heartRate - baseline.hrMean).toFloat()
+        }
+        
+        // Run LSTM inference
+        interpreter.run(inputBuffer, outputBuffer)
+        
+        val anomalyScore = outputBuffer[0][0]
+        
+        return when {
+            anomalyScore > 0.8 -> AnomalyResult.Critical(
+                "High anomaly score ($anomalyScore) for $activity state",
+                score = anomalyScore,
+                confidence = anomalyScore
+            )
+            anomalyScore > 0.6 -> AnomalyResult.Warning(
+                "Moderate anomaly detected",
+                score = anomalyScore,
+                confidence = anomalyScore
+            )
+            else -> null
+        }
+    }
+}
+
+sealed class AnomalyResult {
+    data class Critical(val message: String, val score: Float, val confidence: Float) : AnomalyResult()
+    data class Warning(val message: String, val score: Float, val confidence: Float) : AnomalyResult()
+}
+```
+
+### Step 1.8: Test with Synthetic Data & ML Models
 
 Use Health Services Sensor Panel in emulator:
 1. Extended Controls (...) → Virtual Sensors
 2. Navigate to Health Services
-3. Set Heart Rate: 75 BPM
-4. Set Steps: 1000
-5. Monitor app receiving data
+3. **Test Scenario 1: Normal Resting (Baseline Learning)**
+   - Set HR: 75 BPM, Low movement → ML should classify as RESTING
+4. **Test Scenario 2: Exercise (Active State)**
+   - Set HR: 150 BPM, High movement → ML should classify as EXERCISING
+5. **Test Scenario 3: ML Anomaly Detection**
+   - Set HR: 155 BPM, NO movement → **ML should detect anomaly with high score!**
+6. Monitor on-device ML inference logs:
+   ```
+   Activity Classifier: RESTING (confidence: 0.95, latency: 45ms)
+   Anomaly Detector: CRITICAL (score: 0.87, latency: 92ms)
+   ```
 
 ---
 
-## Phase 2: Cloud Backend
+## Phase 2: Cloud Backend (ML Training & Data Sync)
+
+**Purpose**: The cloud backend provides:
+- Real-time data ingestion and storage
+- ML model training infrastructure (SageMaker)
+- Advanced analytics and insights
+- Mobile dashboard API
+- Model deployment to edge devices
 
 ### Option A: AWS Setup
 
-#### 2.1 Create DynamoDB Table
+#### 2.1 Create DynamoDB Table for Time-Series Storage
 ```bash
 aws dynamodb create-table \
     --table-name HealthMetrics \
@@ -178,23 +347,81 @@ gcloud firestore databases create --region=us-central
 
 ---
 
-## Phase 3: ML Pipeline
+## Phase 3: ML Pipeline (Model Training & Deployment)
 
-### 3.1 Data Preprocessing
+**This phase is REQUIRED** for the hybrid edge-cloud ML system:
+- Train models in cloud (TensorFlow/Keras)
+- Convert to TensorFlow Lite for edge deployment
+- Deploy optimized models to Wear OS devices
+
+### 3.1 Train Activity Classification Model
 
 ```bash
 cd MLPipeline
-python src/preprocessing/data_cleaner.py
+
+# Generate or collect training data
+python src/data/generate_synthetic_data.py --activity-data
+
+# Train CNN-LSTM activity classifier
+python src/models/train_activity_classifier.py \
+    --data data/processed/activity_data.csv \
+    --epochs 50 \
+    --batch-size 32 \
+    --output models/saved_models/activity_classifier.h5
+
+# Convert to TensorFlow Lite with quantization
+python src/deployment/convert_to_tflite.py \
+    --model models/saved_models/activity_classifier.h5 \
+    --output models/tflite/activity_classifier.tflite \
+    --quantize INT8
+
+# Validate TFLite model accuracy
+python src/evaluation/validate_tflite.py \
+    --model models/tflite/activity_classifier.tflite \
+    --test-data data/processed/test_activity.csv
 ```
 
-### 3.2 Train Baseline Model
+### 3.2 Train LSTM Anomaly Detector
 
 ```bash
-# Train Isolation Forest
-python src/models/train_isolation_forest.py
+# Train LSTM Autoencoder for anomaly detection
+python src/models/train_lstm_autoencoder.py \
+    --data data/processed/health_metrics.csv \
+    --sequence-length 50 \
+    --epochs 100 \
+    --output models/saved_models/lstm_anomaly.h5
 
-# Train LSTM Autoencoder
-python src/models/train_lstm_autoencoder.py
+# Convert to TFLite (lightweight version for edge)
+python src/deployment/convert_to_tflite.py \
+    --model models/saved_models/lstm_anomaly.h5 \
+    --output models/tflite/anomaly_detector.tflite \
+    --quantize INT8 \
+    --optimize-for-edge
+```
+
+### 3.3 Deploy Models to Wear OS
+
+```bash
+# Copy TFLite models to Wear OS assets
+cp models/tflite/activity_classifier.tflite ../WearOSApp/app/src/main/assets/
+cp models/tflite/anomaly_detector.tflite ../WearOSApp/app/src/main/assets/
+
+# Rebuild Wear OS app with new models
+cd ../WearOSApp
+./gradlew assembleDebug
+```
+
+### 3.4 Setup Cloud ML Training Pipeline (AWS SageMaker)
+
+```bash
+# Deploy advanced cloud models
+python src/deployment/deploy_to_sagemaker.py \
+    --model-type lstm_autoencoder \
+    --instance-type ml.p3.2xlarge
+
+# Setup automated retraining
+python src/deployment/setup_training_pipeline.py \
+    --schedule "cron(0 0 ? * SUN *)"  # Weekly on Sunday
 ```
 
 ### 3.3 Deploy Model to Cloud

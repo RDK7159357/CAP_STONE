@@ -11,42 +11,42 @@
 
 ## Phase 2: Core Development (Weeks 3-6)
 
-### Week 3: Wear OS App
-- [ ] Implement Health Services integration
+### Week 3: Wear OS App - Sensor Integration & Data Collection
+- [ ] Implement Health Services integration (HR, SpO2, Steps, Accelerometer, Gyro)
 - [ ] Test with emulator synthetic data
-- [ ] Implement local Room database
-- [ ] Add background data collection
-- [ ] Test battery optimization
+- [ ] Implement local Room database for 7-day rolling window
+- [ ] Create data preprocessing pipeline (normalization, windowing)
+- [ ] Setup TensorFlow Lite inference framework on Wear OS
 
-### Week 4: Cloud Backend
-- [ ] Deploy AWS Lambda functions
-- [ ] Setup DynamoDB tables
-- [ ] Configure API Gateway
-- [ ] Implement authentication
-- [ ] Test data ingestion endpoint
+### Week 4: Edge ML Models - Activity Classification
+- [ ] Train activity classification model (TensorFlow/Keras)
+- [ ] Convert to TensorFlow Lite with quantization
+- [ ] Integrate TFLite model into Wear OS app
+- [ ] Test real-time activity inference (target: < 50ms)
+- [ ] Implement Personal Baseline Calculator per activity state
 
-### Week 5: ML Pipeline
-- [ ] Generate comprehensive synthetic dataset
-- [ ] Train baseline models (Isolation Forest)
-- [ ] Train LSTM Autoencoder
-- [ ] Evaluate model performance
-- [ ] Tune hyperparameters
+### Week 5: Edge ML - Anomaly Detection
+- [ ] Train lightweight LSTM anomaly detector
+- [ ] Convert to TFLite and optimize for edge deployment
+- [ ] Integrate anomaly model into Wear OS app
+- [ ] Implement context-aware alert system (ML + baseline)
+- [ ] Test end-to-end on-device ML pipeline (< 100ms total latency)
 
-### Week 6: Mobile Dashboard
-- [ ] Implement data fetching from API
-- [ ] Create dashboard UI
-- [ ] Add real-time charts
-- [ ] Setup Firebase notifications
-- [ ] Test on Android/iOS devices
+### Week 6: Cloud ML Infrastructure
+- [ ] Deploy AWS Lambda for data ingestion
+- [ ] Setup DynamoDB for time-series storage
+- [ ] Configure API Gateway with authentication
+- [ ] Implement SageMaker training pipeline
+- [ ] Create model registry (S3 + versioning)
 
-## Phase 3: Integration (Weeks 7-8)
+## Phase 3: Integration & ML Training (Weeks 7-8)
 
-### Week 7: System Integration
-- [ ] Connect Wear OS app to cloud backend
-- [ ] Integrate ML model with cloud function
-- [ ] Setup data sync workflow
-- [ ] Implement end-to-end testing
-- [ ] Fix integration bugs
+### Week 7: Cloud ML Training & Deployment
+- [ ] Train advanced LSTM Autoencoder on SageMaker
+- [ ] Train time-series forecasting model
+- [ ] Implement model optimization (quantization, pruning)
+- [ ] Create TFLite conversion pipeline
+- [ ] Setup model deployment to edge devices (gradual rollout)
 
 ### Week 8: Testing & Refinement
 - [ ] Performance testing
@@ -55,14 +55,15 @@
 - [ ] UI/UX improvements
 - [ ] Documentation updates
 
-## Phase 4: Advanced Features (Weeks 9-10)
+## Phase 4: Advanced ML Features (Weeks 9-10)
 
-### Week 9: Enhanced ML
-- [ ] Implement online learning
-- [ ] Add model explainability (SHAP)
-- [ ] Deploy model to SageMaker
-- [ ] Implement A/B testing
-- [ ] Add model monitoring
+### Week 9: Advanced ML & Intelligence
+- [ ] Implement federated learning framework
+- [ ] Add multi-sensor fusion ML model
+- [ ] Create predictive anomaly detection (forecast 2-4 hours ahead)
+- [ ] Implement model A/B testing framework
+- [ ] Add ML explainability (SHAP values, attention weights)
+- [ ] Setup model monitoring and performance tracking
 
 ### Week 10: Additional Features
 - [ ] Multi-user support

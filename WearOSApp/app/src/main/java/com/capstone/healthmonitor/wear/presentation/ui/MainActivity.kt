@@ -152,7 +152,7 @@ fun HealthMonitorScreen(
     Scaffold(
         timeText = { TimeText() }
     ) {
-        ScalingLazyColumn(
+ScalingLazyColumn([[]]
             modifier = Modifier
                 .fillMaxSize()
                 .background(MaterialTheme.colors.background),
