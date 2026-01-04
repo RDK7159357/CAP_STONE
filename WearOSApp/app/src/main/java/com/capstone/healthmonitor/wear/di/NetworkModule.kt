@@ -1,6 +1,8 @@
 package com.capstone.healthmonitor.wear.di
 
 import com.capstone.healthmonitor.wear.data.network.ApiConfig
+import com.capstone.healthmonitor.wear.data.network.DynamicBaseUrlInterceptor
+import com.capstone.healthmonitor.wear.data.network.EndpointProvider
 import com.capstone.healthmonitor.wear.data.network.HealthApiService
 import dagger.Module
 import dagger.Provides
@@ -19,12 +21,15 @@ object NetworkModule {
 
     @Provides
     @Singleton
-    fun provideOkHttpClient(): OkHttpClient {
+    fun provideOkHttpClient(
+        dynamicBaseUrlInterceptor: DynamicBaseUrlInterceptor
+    ): OkHttpClient {
         val loggingInterceptor = HttpLoggingInterceptor().apply {
             level = HttpLoggingInterceptor.Level.BODY
         }
 
         return OkHttpClient.Builder()
+            .addInterceptor(dynamicBaseUrlInterceptor)
             .addInterceptor(loggingInterceptor)
             .connectTimeout(ApiConfig.CONNECT_TIMEOUT, TimeUnit.SECONDS)
             .readTimeout(ApiConfig.READ_TIMEOUT, TimeUnit.SECONDS)

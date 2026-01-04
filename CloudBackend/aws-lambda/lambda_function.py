@@ -65,6 +65,13 @@ def handle_single_ingestion(data):
         if field not in data:
             raise ValueError(f"Missing required field: {field}")
     
+    # Optional edge-ML fields
+    is_anomalous_edge = data.get('isAnomalous', False)
+    local_score = data.get('localAnomalyScore')
+    edge_score = data.get('edgeAnomalyScore')
+    activity_state = data.get('activityState')
+    model_version = data.get('modelVersion')
+
     # Prepare item for DynamoDB
     item = {
         'userId': data['userId'],
@@ -72,15 +79,24 @@ def handle_single_ingestion(data):
         'deviceId': data['deviceId'],
         'metrics': convert_floats_to_decimal(data['metrics']),
         'receivedAt': int(datetime.now().timestamp() * 1000),
-        'anomalyDetected': False  # Will be updated by ML pipeline
+        'anomalyDetected': bool(is_anomalous_edge) or False
     }
+
+    if local_score is not None:
+        item['localAnomalyScore'] = convert_floats_to_decimal(local_score)
+    if edge_score is not None:
+        item['edgeAnomalyScore'] = convert_floats_to_decimal(edge_score)
+    if activity_state is not None:
+        item['activityState'] = activity_state
+    if model_version is not None:
+        item['modelVersion'] = model_version
     
     # Store in DynamoDB
     table.put_item(Item=item)
     logger.info(f"Stored metric for user {data['userId']} at {data['timestamp']}")
     
     # Check for anomalies (placeholder - will be replaced by ML model)
-    anomaly_detected = check_for_anomalies(data['metrics'])
+    anomaly_detected = check_for_anomalies(data['metrics'], edge_score)
     
     if anomaly_detected:
         # Update item with anomaly flag
@@ -130,20 +146,27 @@ def handle_batch_ingestion(data_list):
     }
 
 
-def check_for_anomalies(metrics):
+def check_for_anomalies(metrics, edge_score=None):
     """
-    Simple rule-based anomaly detection
-    TODO: Replace with ML model inference
+    Hybrid anomaly detection: prefer edge score if provided; otherwise fall back to thresholds.
     """
-    # Simple threshold-based detection
+    # If edge model provided a score, use it (>=0.5 anomalous)
+    if edge_score is not None:
+        try:
+            score_f = float(edge_score)
+            if score_f >= 0.5:
+                logger.warning(f"Anomaly detected via edge score: {score_f}")
+                return True
+        except Exception:
+            pass
+
+    # Fallback: Simple threshold-based detection
     heart_rate = metrics.get('heartRate')
-    
-    if heart_rate:
-        # Abnormal heart rate thresholds
+    if heart_rate is not None:
         if heart_rate > 150 or heart_rate < 40:
             logger.warning(f"Anomaly detected: Heart rate {heart_rate} BPM")
             return True
-    
+
     return False
 
 

@@ -6,6 +6,8 @@ This chapter provides a comprehensive review of the existing body of research an
 
 The literature review covers four primary domains: (1) wearable health monitoring systems and their evolution, (2) edge computing versus cloud computing architectures with emphasis on trade-offs relevant to health monitoring, (3) machine learning techniques for time-series anomaly detection with focus on LSTM-based autoencoders, and (4) personalization methodologies in health monitoring including baseline establishment and adaptive thresholding.
 
+**Current implementation positioning.** The present Wear OS build implements an edge-first subset of this vision: two lightweight TFLite models (activity softmax; 10×4 anomaly autoencoder) running entirely on-device with a rule-based fallback; no accelerometer/gyroscope inputs yet; personalization and OTA/cloud retraining are planned but not active.
+
 ## 2.2 Wearable Health Monitoring Systems
 
 ### 2.2.1 Evolution and State of the Art
@@ -117,6 +119,8 @@ Recent research has explored hybrid architectures that strategically partition c
 **Early Exit Networks:** Deploy neural networks with multiple exit points; simple cases exit early (on-device), while complex cases continue to deeper layers or cloud processing. This approach achieved 70% reduction in cloud queries while maintaining 97.3% of full-model accuracy in image classification tasks.
 
 **Model Cascading:** Execute a lightweight model on-device; if confidence is low, transmit to cloud for processing by a larger, more sophisticated model. Applied to health monitoring, 85% of normal cases were classified on-device, while anomalous cases were verified by cloud models, reducing average latency by 68%.
+
+**Practical stance in this project.** The current release operates as a pure edge pipeline (manual model assets, no cloud cascade/OTA yet) to guarantee offline alerts and simplify reliability. Future iterations intend to add signed OTA delivery and optional cloud-side retraining, adopting a measured hybrid approach rather than continuous cloud dependency.
 
 **Federated Learning:** Train models using data distributed across many edge devices without centralizing raw data. Device-local models are trained on local data; only model parameter updates are transmitted to a central server for aggregation. This approach has been successfully applied to keyboard prediction and has recently been explored for health monitoring applications.
 

@@ -1,0 +1,11 @@
+{
+  "type": "IsolationForest",
+  "features": [
+    "heartRate",
+    "steps",
+    "calories",
+    "distance"
+  ],
+  "threshold": -0.5507779638278313,
+  "contamination": 0.1
+}

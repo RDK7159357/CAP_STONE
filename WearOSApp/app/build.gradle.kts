@@ -36,6 +36,7 @@ android {
 
     kotlinOptions {
         jvmTarget = "17"
+        freeCompilerArgs = listOf("-opt-in=androidx.compose.material.ExperimentalMaterialApi")
     }
 
     buildFeatures {
@@ -62,6 +63,8 @@ dependencies {
     // Compose for Wear OS
     implementation("androidx.wear.compose:compose-material:1.2.1")
     implementation("androidx.wear.compose:compose-foundation:1.2.1")
+    implementation("androidx.compose.material:material:1.5.4")
+    implementation("androidx.compose.ui:ui:1.5.4")
     implementation("androidx.compose.ui:ui-tooling-preview:1.5.4")
     implementation("androidx.activity:activity-compose:1.8.1")
 
@@ -91,6 +94,10 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.7.3")
 
+    // TensorFlow Lite (edge inference)
+    implementation("org.tensorflow:tensorflow-lite:2.12.0")
+    implementation("org.tensorflow:tensorflow-lite-support:0.4.4")
+
     // Lifecycle
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.6.2")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.6.2")
@@ -98,6 +105,9 @@ dependencies {
 
     // Core
     implementation("androidx.core:core-ktx:1.12.0")
+
+    // DataStore
+    implementation("androidx.datastore:datastore-preferences:1.1.1")
 
     // Testing
     testImplementation("junit:junit:4.13.2")

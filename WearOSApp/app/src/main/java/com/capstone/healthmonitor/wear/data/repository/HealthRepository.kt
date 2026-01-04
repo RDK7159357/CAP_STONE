@@ -5,6 +5,8 @@ import com.capstone.healthmonitor.wear.data.local.HealthMetricDao
 import com.capstone.healthmonitor.wear.data.network.HealthApiService
 import com.capstone.healthmonitor.wear.domain.model.HealthMetric
 import com.capstone.healthmonitor.wear.domain.model.HealthMetricRequest
+import com.capstone.healthmonitor.wear.domain.usecase.EdgeMlEngine
+import com.capstone.healthmonitor.wear.domain.usecase.LocalAnomalyDetector
 import kotlinx.coroutines.flow.Flow
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -12,7 +14,9 @@ import javax.inject.Singleton
 @Singleton
 class HealthRepository @Inject constructor(
     private val healthMetricDao: HealthMetricDao,
-    private val apiService: HealthApiService
+    private val apiService: HealthApiService,
+    private val anomalyDetector: LocalAnomalyDetector,
+    private val edgeMlEngine: EdgeMlEngine
 ) {
     companion object {
         private const val TAG = "HealthRepository"
@@ -53,7 +57,7 @@ class HealthRepository @Inject constructor(
     }
 
     /**
-     * Sync metrics to cloud backend
+     * Sync metrics to cloud backend with local anomaly flagging
      */
     suspend fun syncMetricsToCloud(): Result<Int> {
         return try {
@@ -63,8 +67,16 @@ class HealthRepository @Inject constructor(
                 return Result.success(0)
             }
 
-            // Convert to API request format
+            // Fetch recent metrics for delta/context checks (non-flow version)
+            val recentMetricsForContext = healthMetricDao.getRecentMetricsSync(10)
+
+            // Convert to API request format with local anomaly flagging
             val requests = unsyncedMetrics.map { metric ->
+                val activityResult = edgeMlEngine.classifyActivity(metric)
+                val anomalyResult = edgeMlEngine.detectAnomaly(metric, recentMetricsForContext)
+
+                val ruleScore = anomalyDetector.getLocalScore(metric, recentMetricsForContext)
+
                 HealthMetricRequest(
                     userId = metric.userId,
                     timestamp = metric.timestamp,
@@ -74,8 +86,14 @@ class HealthRepository @Inject constructor(
                         metric.calories?.let { put("calories", it) }
                         metric.distance?.let { put("distance", it) }
                         metric.batteryLevel?.let { put("batteryLevel", it) }
+                        put("activityState", activityResult.state)
                     },
-                    deviceId = metric.deviceId
+                    deviceId = metric.deviceId,
+                    isAnomalous = anomalyResult.isAnomaly,
+                    localAnomalyScore = ruleScore,
+                    edgeAnomalyScore = anomalyResult.score,
+                    activityState = activityResult.state,
+                    modelVersion = anomalyResult.modelVersion
                 )
             }
 

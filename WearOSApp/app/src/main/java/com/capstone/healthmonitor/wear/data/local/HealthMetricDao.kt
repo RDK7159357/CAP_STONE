@@ -26,6 +26,9 @@ interface HealthMetricDao {
     @Query("SELECT * FROM health_metrics ORDER BY timestamp DESC LIMIT :limit")
     fun getRecentMetrics(limit: Int = 50): Flow<List<HealthMetric>>
 
+    @Query("SELECT * FROM health_metrics ORDER BY timestamp DESC LIMIT :limit")
+    suspend fun getRecentMetricsSync(limit: Int = 50): List<HealthMetric>
+
     @Query("SELECT * FROM health_metrics WHERE timestamp >= :startTime AND timestamp <= :endTime ORDER BY timestamp ASC")
     suspend fun getMetricsByTimeRange(startTime: Long, endTime: Long): List<HealthMetric>
 

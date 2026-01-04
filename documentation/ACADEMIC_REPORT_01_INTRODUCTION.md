@@ -81,33 +81,15 @@ Furthermore, consumer trust in cloud-based health systems is rapidly eroding, pa
 
 ## 1.3 Proposed Innovation: Hybrid Edge-Cloud Machine Learning
 
-### 1.3.1 Core Concept
+### 1.3.1 Core Concept and Current Implementation Snapshot
 
-This project proposes a fundamentally new architectural paradigm for wearable health monitoring: a **hybrid edge-cloud machine learning system** that strategically distributes computation between the smartwatch and cloud infrastructure to maximize the strengths of each computational environment while minimizing their respective weaknesses.
+The target architecture remains a **hybrid edge-cloud** design, but the current implementation is edge-first and simplified:
 
-The proposed system operates on the following principles:
+- **On-device models (shipping now):** Two TensorFlow Lite models run on the Wear OS watch using HR, steps, calories, and distance as inputs. The activity model outputs a 6-class softmax; the anomaly model is a 10×4 sequence autoencoder that computes reconstruction error. Both log `usedTflite=true` in on-device sanity checks; a rule-based fallback remains in place if inference fails.
+- **Personalization status:** A personalized baseline engine is planned but not yet wired into inference; anomaly thresholds are currently static, with padding when fewer than 10 samples exist.
+- **Cloud/OTA status:** Cloud retraining and OTA model delivery are planned; current updates rely on manual asset replacement. Edge inference is fully offline-capable.
 
-1. **On-Device Intelligence:** TensorFlow Lite neural network models deployed on the Wear OS smartwatch provide:
-   - Real-time activity classification that identifies current movement state (Sleep, Rest, Walk, Run, Exercise) using a CNN-LSTM hybrid architecture
-   - Instantaneous anomaly detection relative to personalized baselines using lightweight LSTM autoencoders
-   - Sub-100ms inference latency, enabling immediate alerts for critical health events
-
-2. **Cloud-Enhanced Learning:** Advanced deep learning models running on AWS cloud infrastructure:
-   - Train sophisticated LSTM autoencoder models on historical user data accumulated over days and weeks
-   - Leverage population-level insights through federated learning, improving model quality without compromising individual privacy
-   - Perform weekly model retraining, optimization, and conversion to optimized TensorFlow Lite format
-   - Enable A/B testing and gradual rollout of improved models to edge devices
-
-3. **Personalization Through Data:** A 7-day rolling window of on-device data establishes personal health baselines:
-   - Individual baseline statistics (mean, percentile ranges) are computed per activity state
-   - These baselines enable context-aware anomaly detection where deviations from personal norms trigger alerts
-   - Baselines adapt automatically as the user's health or fitness changes
-
-4. **Privacy-Centric Synchronization:** Health data transmission to the cloud is carefully controlled:
-   - Only processed insights and anonymized aggregates leave the device by default
-   - Full data transmission occurs only with explicit user consent or for detailed analysis
-   - Locally-detected anomalies are logged but not transmitted unless critical
-   - The system remains fully functional offline; synchronization occurs when convenient
+The long-term principles stay the same: edge for latency/privacy and cloud for heavier training, but the present build focuses on reliable on-device inference with minimal dependencies.
 
 ### 1.3.2 Technical Architecture Overview
 
@@ -115,25 +97,16 @@ The proposed system comprises four integrated components:
 
 **Component 1: Wear OS Edge Device**
 
-The Wear OS smartwatch serves as the primary computational and sensing hub. It incorporates:
+The Wear OS smartwatch is the primary sensing and compute node:
 
-- **Sensor Integration:** Direct access to heart rate sensors, accelerometers, gyroscopes, and ambient pressure sensors through the Health Services API
-- **Local Data Persistence:** Room database maintains a rolling 7-day history of all metrics
-- **On-Device ML:** Two TensorFlow Lite models execute continuously:
-  - Activity classifier (6-state: Sleep, Rest, Walk, Run, Exercise, Other)
-  - LSTM anomaly detector for personalized outlier detection
-- **Personal Baseline Engine:** Statistical calculations derive baseline HR, SpO2, and other metrics per activity state from the 7-day rolling window
-- **Background Synchronization:** WorkManager enables efficient cloud synchronization during optimal times (e.g., overnight on WiFi charging)
+- **Sensor inputs (current):** Heart rate, step count, calories, and distance. Accelerometer/gyroscope streams are not yet consumed by the shipped models.
+- **Local persistence:** Room database stores recent metrics; data retention policies are defined but personalization baselines are not yet applied in inference.
+- **On-device ML:** Two TFLite models (activity softmax; anomaly autoencoder) run locally with a rule-based fallback on errors.
+- **Sync:** Background sync is present; OTA model delivery is planned but current model updates are manual asset replacements.
 
 **Component 2: AWS Cloud Backend**
 
-The cloud infrastructure provides:
-
-- **Serverless API:** API Gateway exposes REST endpoints for data ingestion and model queries
-- **Data Ingestion:** Lambda functions validate, transform, and store incoming health data in DynamoDB
-- **Time-Series Storage:** DynamoDB maintains comprehensive historical records with efficient querying by time range
-- **ML Pipeline:** SageMaker notebooks and training jobs perform advanced analytics and model training
-- **Model Registry:** S3 bucket versioning enables model rollback and A/B testing
+The cloud side remains planned for training/registry; the current watch app operates without cloud dependency. Future work includes API ingestion, retraining, and signed OTA delivery from a model registry.
 
 **Component 3: ML Training Pipeline**
 

@@ -14,13 +14,12 @@ While existing solutions (Fitbit, Apple Watch, Samsung) rely on:
 - ❌ Generic alerts without personal context
 
 **Our hybrid innovation delivers:**
-- ✅ **Edge ML inference**: TensorFlow Lite models run on watch (< 100ms response)
-- ✅ **Personalized learning**: LSTM models trained on YOUR data patterns
-- ✅ **ML-powered activity context**: Neural network classifies 6+ activity states
-- ✅ **Cloud intelligence**: Deep learning models train on historical data
-- ✅ **Federated learning**: Models improve from population data without privacy loss
-- ✅ **Offline-capable**: Works without internet, intelligent sync when connected
-- ✅ **Continuous improvement**: Weekly model retraining and deployment
+✅ **Edge ML inference**: TensorFlow Lite models on watch (activity + anomaly), with rule fallback
+✅ **Personalized learning**: LSTM autoencoder (TFLite) trained on heart/steps/calories/distance patterns
+✅ **ML-powered activity context**: Activity classifier (6 states) feeding anomaly context
+✅ **Cloud intelligence**: Deep model endpoint (Lambda/SageMaker-ready) + Isolation Forest fallback
+✅ **Offline-capable**: On-device inference + buffered sync
+✅ **Continuous improvement**: Retrain/replace TFLite artifacts via pipeline
 
 ## 📁 Project Structure
 
