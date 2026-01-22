@@ -29,7 +29,7 @@ graph TB
         R[Lambda Deploy<br/>Model Push]
     end
     
-    subgraph "Mobile Dashboard - Flutter"
+    subgraph "Mobile Dashboard - React Native + Expo"
         S[Dashboard UI]
         T[Historical Charts]
         U[Personal Insights]
@@ -189,7 +189,7 @@ graph LR
     
     subgraph "Analytics Layer"
         G1[Dashboard API]
-        G2[Flutter Mobile App]
+        G2[React Native Mobile App]
         G3[Web Dashboard]
         
         C3 --> G1

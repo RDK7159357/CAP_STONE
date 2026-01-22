@@ -60,16 +60,19 @@ CAP_STONE/
 │   │   └── deployment/            # Deployment scripts
 │   └── requirements.txt
 │
-├── MobileDashboard/                # Flutter mobile app
-│   ├── lib/
+├── MobileDashboard_RN/             # React Native + Expo mobile app
+│   ├── src/
 │   │   ├── config/                # Configuration
-│   │   ├── models/                # Data models
-│   │   ├── providers/             # State management
+│   │   ├── types/                 # TypeScript type definitions
+│   │   ├── store/                 # Zustand state management
 │   │   ├── screens/               # UI screens
-│   │   ├── widgets/               # Reusable widgets
+│   │   ├── components/            # Reusable components
 │   │   ├── services/              # API & notifications
-│   │   └── main.dart
-│   └── pubspec.yaml
+│   │   ├── navigation/            # React Navigation setup
+│   │   └── utils/                 # Utility functions
+│   ├── assets/                    # Images, icons, animations
+│   ├── App.tsx                    # Main app component
+│   └── package.json               # Dependencies
 │
 ├── docs/                           # Documentation
 │   └── TESTING.md
@@ -114,11 +117,14 @@ CAP_STONE/
   - Optuna (hyperparameter tuning)
 
 ### Mobile Dashboard
-- **Framework**: Flutter
-- **State Management**: Provider/Riverpod
-- **Charts**: fl_chart
-- **Notifications**: Firebase Cloud Messaging
-- **Storage**: Hive (local caching)
+- **Framework**: React Native + Expo
+- **Language**: TypeScript
+- **State Management**: Zustand
+- **Storage**: AsyncStorage (local caching)
+- **Notifications**: Expo Notifications
+- **Navigation**: React Navigation (Bottom Tabs)
+- **UI**: React Native core components + custom components
+- **Icons**: Expo Vector Icons (Material Community Icons)
 
 ## 🚀 Key Features
 
@@ -225,10 +231,11 @@ By completing this project, you will gain expertise in:
    - Model deployment (SageMaker)
 
 4. **Mobile Development**
-   - Flutter cross-platform development
-   - State management
-   - Push notifications
-   - Data visualization
+   - React Native + Expo cross-platform development
+   - TypeScript for type safety
+   - Zustand state management
+   - Push notifications with Expo
+   - Data visualization with custom components
 
 5. **System Integration**
    - End-to-end system design
@@ -298,6 +305,8 @@ By completing this project, you will gain expertise in:
 - [PROJECT_SETUP_GUIDE.md](PROJECT_SETUP_GUIDE.md) - Complete setup guide
 - [QUICK_START.md](QUICK_START.md) - Get started quickly
 - [ROADMAP.md](ROADMAP.md) - Development timeline
+- [MIGRATION_GUIDE_RN.md](MIGRATION_GUIDE_RN.md) - Flutter to React Native migration guide
+- [REACT_NATIVE_MIGRATION_REPORT.md](REACT_NATIVE_MIGRATION_REPORT.md) - Migration report
 - [docs/TESTING.md](docs/TESTING.md) - Testing strategies
 - Component READMEs in each directory
 

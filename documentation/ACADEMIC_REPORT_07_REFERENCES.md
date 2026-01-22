@@ -41,7 +41,8 @@
 20. Amazon Web Services. (2023). "Amazon SageMaker Documentation." *https://docs.aws.amazon.com/sagemaker/*
 
 ### Mobile Dashboard
-21. Flutter Documentation. (2023). "Build beautiful, natively compiled applications." *https://flutter.dev/docs*
+21. React Native Documentation. (2023). "Learn once, write anywhere." *https://reactnative.dev/docs/getting-started*
+22. Expo Documentation. (2023). "Build one project that runs natively on all your users' devices." *https://docs.expo.dev/*
 22. Dart Programming Language. (2023). "The Dart Language and Libraries." *https://dart.dev/guides*
 
 ## Design and Architecture References

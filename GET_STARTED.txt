@@ -41,11 +41,11 @@ Your complete Real-Time Health Monitoring System is now ready for development.
 │     🎯 Anomaly detection                                                │
 │     🚀 Deployment scripts                                               │
 │                                                                          │
-│  4️⃣  MOBILE DASHBOARD (Flutter)                           ✅ Ready    │
+│  4️⃣  MOBILE DASHBOARD (React Native + Expo)           ✅ Ready    │
 │     📱 Cross-platform mobile app                                        │
 │     📊 Real-time charts                                                 │
 │     🔔 Push notifications                                               │
-│     💾 Offline support                                                  │
+│     💾 Offline support (AsyncStorage)                                   │
 │                                                                          │
 └─────────────────────────────────────────────────────────────────────────┘
 
@@ -89,9 +89,9 @@ Your complete Real-Time Health Monitoring System is now ready for development.
 │     $ ./deploy.sh                                                       │
 │                                                                          │
 │  3. Setup Mobile Dashboard:                                             │
-│     $ cd MobileDashboard                                                │
-│     $ flutter pub get                                                   │
-│     $ flutterfire configure                                             │
+│     $ cd MobileDashboard_RN                                             │
+│     $ npm install                                                       │
+│     $ npm start                                                         │
 │                                                                          │
 └─────────────────────────────────────────────────────────────────────────┘
 

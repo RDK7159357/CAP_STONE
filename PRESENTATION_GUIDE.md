@@ -93,7 +93,7 @@
 1. **Edge Layer**: Wear OS app with TFLite models
 2. **Cloud Layer**: AWS (Lambda, DynamoDB, SageMaker)
 3. **ML Pipeline**: Model training, optimization, deployment
-4. **Dashboard**: Flutter mobile app for visualization
+4. **Dashboard**: React Native + Expo mobile app for visualization
 
 ---
 
@@ -777,7 +777,7 @@ Other          0.01  0.03  0.02  0.01  0.01    0.92
 - ✅ Wear OS application (APK)
 - ✅ Cloud backend (deployed on AWS)
 - ✅ ML models (TFLite + trained weights)
-- ✅ Mobile dashboard (Flutter)
+- ✅ Mobile dashboard (React Native + Expo)
 - ✅ Documentation (README, guides)
 - ✅ Test results & validation report
 - 🔄 Project presentation (this document)
@@ -837,7 +837,7 @@ Other          0.01  0.03  0.02  0.01  0.01    0.92
 5. Show instant on-device alert
 
 **Part 2: Cloud Dashboard (3 mins)**
-1. Display mobile dashboard (Flutter app)
+1. Display mobile dashboard (React Native app)
 2. Show historical trends and charts
 3. Demonstrate data sync from watch
 4. Display personal baseline evolution
@@ -1067,7 +1067,7 @@ CAP_STONE/
 │   ├── data/                  # Datasets
 │   └── requirements.txt
 │
-├── MobileDashboard/           # Flutter mobile app
+├── MobileDashboard_RN/           # React Native mobile app
 │   ├── lib/
 │   │   ├── screens/           # UI screens
 │   │   ├── widgets/           # Reusable widgets

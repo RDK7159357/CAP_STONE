@@ -50,7 +50,7 @@ Unlike traditional health monitors that use either fixed thresholds OR cloud-onl
 │                         ↓                                    │
 │  ┌──────────────┐  ┌──────────────┐                         │
 │  │  Dashboard   │  │  Advanced    │                         │
-│  │  (Flutter)   │  │  Analytics   │                         │
+│  │ (React Native)│  │  Analytics   │                         │
 │  └──────────────┘  └──────────────┘                         │
 └──────────────────────────────────────────────────────────────┘
 ```
@@ -62,7 +62,7 @@ CAP_STONE/
 ├── WearOSApp/              # Android Wear OS application
 ├── CloudBackend/           # Cloud functions and APIs
 ├── MLPipeline/             # Machine Learning models and preprocessing
-├── MobileDashboard/        # Flutter mobile app for visualization
+├── MobileDashboard_RN/     # React Native + Expo mobile app for visualization
 ├── docs/                   # Documentation
 └── scripts/                # Utility scripts
 ```
@@ -122,9 +122,13 @@ CAP_STONE/
 - **MLOps**: Model versioning, A/B testing, performance monitoring
 
 ### Mobile Dashboard
-- **Framework**: Flutter
-- **State Management**: Provider/Riverpod
-- **Features**: Real-time charts, push notifications
+- **Framework**: React Native + Expo
+- **Language**: TypeScript
+- **State Management**: Zustand
+- **Storage**: AsyncStorage
+- **Notifications**: Expo Notifications
+- **Navigation**: React Navigation (Bottom Tabs)
+- **Features**: Real-time charts, push notifications, dark mode, offline support
 
 ## Getting Started
 
@@ -133,9 +137,9 @@ CAP_STONE/
 - Android Studio (latest version)
 - Wear OS SDK (API 30+)
 - Python 3.8+
-- Flutter SDK
+- Node.js 16+ and npm/yarn
+- Expo CLI
 - AWS/GCP Account
-- Node.js (for cloud functions)
 
 ### Phase 1: Setup Wear OS App
 
@@ -147,7 +151,7 @@ See [CloudBackend/README.md](CloudBackend/README.md) for detailed instructions.
 
 ### Phase 3: Setup ML Pipeline
 
-See [MLPipeline/README.md](MLPipeline/README.md) for detailed instructions.
+See [MLPipeline/READ_RN/README.md](MobileDashboard_RN) for detailed instructions.
 
 ### Phase 4: Setup Mobile Dashboard
 

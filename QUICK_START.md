@@ -7,7 +7,8 @@ This guide will help you get started quickly with the Real-Time Health Monitorin
 - [ ] **Android Studio** (latest version) - [Download](https://developer.android.com/studio)
 - [ ] **Python 3.8+** - Check: `python3 --version`
 - [ ] **AWS Account** (or Google Cloud) - [AWS Sign up](https://aws.amazon.com/)
-- [ ] **Flutter SDK** (for dashboard) - [Download](https://flutter.dev)
+- [ ] **Node.js 16+** and npm/yarn - Check: `node --version`
+- [ ] **Expo CLI** - Install: `npm install -g expo-cli`
 - [ ] **Git** - Check: `git --version`
 
 ## 🎯 Option 1: Fast Track (Testing Only - 30 minutes)
@@ -168,25 +169,32 @@ python src/models/train_lstm_autoencoder.py \
 python src/deployment/deploy_to_sagemaker.py
 ```
 
-### Phase 4: Mobile Dashboard (45 min)
+### Phase 4: Mobile Dashboard (30 min)
 
 ```bash
-cd CAP_STONE/MobileDashboard
+cd CAP_STONE/MobileDashboard_RN
 
-# Install Flutter packages
-flutter pub get
+# Install dependencies
+npm install
+# or
+yarn install
 
-# Setup Firebase
-firebase login
-flutterfire configure
-# Select your Firebase project or create new one
-
-# Update API endpoint in lib/config/api_config.dart
+# Update API endpoint in src/config/api.config.ts
 # Replace BASE_URL with your API Gateway URL
+export const API_CONFIG = {
+  BASE_URL: 'https://your-api-gateway-url.com',
+  // ...
+};
+
+# Start Expo development server
+npm start
+# or
+yarn start
 
 # Run on device/emulator
-flutter devices
-flutter run -d <device_id>
+# iOS: npm run ios (requires macOS and Xcode)
+# Android: npm run android
+# Or scan QR code with Expo Go app on physical device
 ```
 
 ---
@@ -256,8 +264,9 @@ Phase 3: ML Pipeline
 └── [✓] Model evaluation complete
 
 Phase 4: Mobile Dashboard
-├── [✓] Flutter installed
-├── [✓] Firebase configured
+├── [✓] Node.js and npm installed
+├── [✓] Expo CLI installed
+├── [✓] Dependencies installed
 ├── [✓] Dashboard UI created
 ├── [✓] Push notifications working
 └── [✓] Charts displaying data
@@ -309,14 +318,14 @@ aws lambda update-function-code \
     --zip-file fileb://function.zip
 ```
 
-### Issue 4: Flutter - "Firebase not configured"
+### Issue 4: React Native - "Metro bundler error"
 ```bash
 # Solution:
-# Reinstall FlutterFire CLI
-dart pub global activate flutterfire_cli
-
-# Reconfigure
-flutterfire configure
+# Clear Metro cache and reinstall dependencies
+cd MobileDashboard_RN
+rm -rf node_modules package-lock.json
+npm install
+npm start -- --reset-cache
 ```
 
 ### Issue 5: ML Model - "Out of Memory"
@@ -368,7 +377,7 @@ python src/models/train_lstm_autoencoder.py \
 - **Logs**: 
   - Wear OS: `adb logcat | grep HealthMonitor`
   - AWS: `aws logs tail /aws/lambda/HealthDataIngestion`
-  - Flutter: Check Debug Console in IDE
+  - React Native: Check Metro bundler console or Expo DevTools
 
 ---
 
@@ -377,7 +386,9 @@ python src/models/train_lstm_autoencoder.py \
 - [Health Services API Guide](https://developer.android.com/training/wearables/health-services)
 - [AWS Lambda Documentation](https://docs.aws.amazon.com/lambda/)
 - [TensorFlow Time Series](https://www.tensorflow.org/tutorials/structured_data/time_series)
-- [Flutter Documentation](https://flutter.dev/docs)
+- [React Native Documentation](https://reactnative.dev/docs/getting-started)
+- [Expo Documentation](https://docs.expo.dev/)
+- [Zustand State Management](https://github.com/pmndrs/zustand)
 
 ---
 

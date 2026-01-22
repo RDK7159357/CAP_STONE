@@ -193,7 +193,7 @@ A Python-based pipeline provides:
 
 **Component 4: Mobile Dashboard**
 
-A Flutter mobile application provides:
+A React Native + Expo mobile application provides:
 
 - **Real-Time Metrics:** Live heart rate, activity, and baseline statistics
 - **Historical Analysis:** Charts and trends over days, weeks, and months
@@ -210,7 +210,7 @@ The proposed system offers several novel contributions to the wearable health mo
 
 3. **Privacy-First Federated Learning:** The system improves model quality through exposure to population insights without ever transmitting raw health data to the cloud. Only trained model parameters are shared and aggregated.
 
-4. **Production-Ready Implementation:** Unlike many research prototypes, this system provides complete end-to-end implementation in production-ready languages and frameworks (Kotlin for Wear OS, Python for ML, Flutter for mobile), demonstrating practical viability at scale.
+4. **Production-Ready Implementation:** Unlike many research prototypes, this system provides complete end-to-end implementation in production-ready languages and frameworks (Kotlin for Wear OS, Python for ML, React Native + TypeScript for mobile), demonstrating practical viability at scale.
 
 ## 1.4 Motivation and Significance
 
@@ -255,7 +255,7 @@ The overarching goal of this thesis is to design, implement, and validate a comp
 - Activity classification for 6 states (Sleep, Rest, Walk, Run, Exercise, Other)
 - LSTM autoencoder as the primary anomaly detection model
 - AWS as cloud infrastructure provider
-- Flutter mobile dashboard for visualization
+- React Native + Expo mobile dashboard for visualization
 - Synthetic and real health data for testing and validation
 
 **Out of Scope:**
@@ -727,7 +727,8 @@ This work shows that clinically relevant, real-time health insights are achievab
 20. Amazon Web Services. (2023). "Amazon SageMaker Documentation." *https://docs.aws.amazon.com/sagemaker/*
 
 ### Mobile Dashboard
-21. Flutter Documentation. (2023). "Build beautiful, natively compiled applications." *https://flutter.dev/docs*
+21. React Native Documentation. (2023). "Learn once, write anywhere." *https://reactnative.dev/docs/getting-started*
+22. Expo Documentation. (2023). "Build one project that runs natively on all your users' devices." *https://docs.expo.dev/*
 22. Dart Programming Language. (2023). "The Dart Language and Libraries." *https://dart.dev/guides*
 
 ## Design and Architecture References

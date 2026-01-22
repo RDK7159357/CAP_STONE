@@ -220,3 +220,5 @@ data/synthetic/*
 *.so
 *.dylib
 *.dll
+
+.fake

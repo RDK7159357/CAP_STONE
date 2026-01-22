@@ -35,10 +35,14 @@ source venv/bin/activate  # On macOS/Linux
 pip install -r MLPipeline/requirements.txt
 ```
 
-#### Flutter (for Dashboard)
+#### Node.js and Expo (for Dashboard)
 ```bash
-# Download from: https://flutter.dev/docs/get-started/install
-flutter doctor
+# Install Node.js 16+ from: https://nodejs.org/
+node --version
+npm --version
+
+# Install Expo CLI globally
+npm install -g expo-cli
 ```
 
 #### Cloud CLI Tools
@@ -443,48 +447,56 @@ gcloud ai-platform versions create v1 \
 
 ---
 
-## Phase 4: Mobile Dashboard
+## Phase 4: React Native Mobile Dashboard
 
-### 4.1 Create Flutter Project
-
-```bash
-cd MobileDashboard
-flutter create health_monitor_dashboard
-cd health_monitor_dashboard
-```
-
-### 4.2 Add Dependencies
-
-Edit `pubspec.yaml`:
-```yaml
-dependencies:
-  flutter:
-    sdk: flutter
-  http: ^1.1.0
-  provider: ^6.0.5
-  fl_chart: ^0.65.0
-  firebase_messaging: ^14.7.6
-  firebase_core: ^2.24.2
-```
-
-### 4.3 Setup Firebase for Notifications
+### 4.1 Setup React Native Project
 
 ```bash
-# Install Firebase CLI
-npm install -g firebase-tools
+cd MobileDashboard_RN
 
-# Login and initialize
-firebase login
-firebase init
+# Install dependencies
+npm install
+# or
+yarn install
+```
 
-# Add Firebase to Flutter app
-flutterfire configure
+### 4.2 Configure API Endpoint
+
+Edit `src/config/api.config.ts`:
+```typescript
+export const API_CONFIG = {
+  BASE_URL: 'https://your-api-gateway-url.amazonaws.com/prod',
+  TIMEOUT: 10000,
+  HEADERS: {
+    'Content-Type': 'application/json',
+  },
+};
+```
+
+### 4.3 Setup Expo Notifications
+
+Notifications are already configured with Expo Notifications. To customize:
+
+Edit `src/services/notification.service.ts`:
+```typescript
+// Configure notification channels and handlers
+// Already implemented in the project
 ```
 
 ### 4.4 Run Dashboard
 
 ```bash
-flutter run
+# Start Expo development server
+npm start
+# or
+yarn start
+
+# Run on specific platform
+npm run ios      # iOS (requires macOS)
+npm run android  # Android
+npm run web      # Web browser
+
+# Or scan QR code with Expo Go app on your phone
 ```
 
 ---
@@ -588,4 +600,6 @@ model.add(Dense(128, kernel_regularizer=l2(0.001)))
 - [Health Services API Documentation](https://developer.android.com/training/wearables/health-services)
 - [AWS Lambda Documentation](https://docs.aws.amazon.com/lambda/)
 - [TensorFlow Time Series Tutorial](https://www.tensorflow.org/tutorials/structured_data/time_series)
-- [Flutter Firebase Setup](https://firebase.flutter.dev/docs/overview)
+- [React Native Documentation](https://reactnative.dev/docs/getting-started)
+- [Expo Documentation](https://docs.expo.dev/)
+- [Zustand State Management](https://github.com/pmndrs/zustand)

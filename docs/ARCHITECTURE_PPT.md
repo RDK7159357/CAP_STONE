@@ -38,16 +38,16 @@
         +--> [Analytics/BI] (optional S3 lake)
         |
         v
-[Flutter Mobile Dashboard]
-  - Real-time charts (fl_chart)
-  - Alert inbox (FCM)
+[React Native Mobile Dashboard]
+  - Real-time charts
+  - Alert inbox (Expo Notifications)
 ```
 
 ## 3. Component Responsibilities
 - WearOSApp (Kotlin/Compose): sensor read, buffer (Room), background sync (WorkManager), retry/backoff, minimal battery.
 - CloudBackend (API GW + Lambda + DynamoDB): authn/z, validation, persistence, streaming to ML, alert fan-out.
 - MLPipeline (Python/TF/Sklearn): preprocessing, training (LSTM AE, Isolation Forest), model registry (S3), deploy to SageMaker endpoint.
-- MobileDashboard (Flutter): fetch metrics, render charts, manage notifications (Firebase), offline cache, settings.
+- MobileDashboard_RN (React Native + TypeScript): fetch metrics, render charts, manage notifications (Expo Notifications), offline cache (AsyncStorage), settings (Zustand store).
 - Observability: CloudWatch logs/metrics, X-Ray traces, alarms (SNS), dashboards.
 
 ## 4. Data Flow (Numbered)
@@ -130,7 +130,7 @@ S3 data -> Preprocess -> Train -> Eval -> Register -> Deploy new endpoint -> Can
 ```
 
 ## 12. Testing & Quality
-- Unit: Kotlin (sensors, repos), Python (handlers, preprocessing), Flutter (providers/widgets).
+- Unit: Kotlin (sensors, repos), Python (handlers, preprocessing), TypeScript (components, services, stores).
 - Contract: Ingest API schema via tests + Postman collection.
 - Integration: Emulator synthetic data → API → DynamoDB → model → alert.
 - Load: k6/Locust against API GW; DynamoDB WCU/RCU alarms; model p95.

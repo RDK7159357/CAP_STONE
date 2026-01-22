@@ -7,7 +7,7 @@
 - [x] Wear OS app skeleton
 - [x] Cloud backend architecture
 - [x] ML pipeline structure
-- [x] Mobile dashboard foundation
+- [x] React Native + Expo mobile dashboard (migrated from Flutter)
 
 ## Phase 2: Core Development (Weeks 3-6)
 
@@ -92,7 +92,7 @@
 
 ### Short-term (3 months)
 - [ ] Apple Watch support
-- [ ] Web dashboard
+- [ ] Enhanced web dashboard (React)
 - [ ] Advanced analytics
 - [ ] Custom alert rules
 - [ ] Integration with EHR systems
@@ -140,7 +140,7 @@
 - Android Developer (Wear OS)
 - Cloud Engineer (AWS/GCP)
 - ML Engineer
-- Mobile Developer (Flutter)
+- React Native Developer (TypeScript)
 - QA Engineer
 
 ### Infrastructure
