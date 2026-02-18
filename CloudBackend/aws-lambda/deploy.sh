@@ -4,6 +4,9 @@
 
 set -e
 
+# Disable AWS CLI pager
+export AWS_PAGER=""
+
 echo "🚀 Deploying Health Monitoring Cloud Backend..."
 
 # Configuration
@@ -21,8 +24,8 @@ REGION="ap-south-2"
 MODEL_BUCKET="health-ml-models"
 MODEL_KEY="isolation_forest/model.pkl"
 SCALER_KEY="isolation_forest/scaler.pkl"
-MODEL_LOCAL_PATH="MLPipeline/models/saved_models/isolation_forest.pkl"
-SCALER_LOCAL_PATH="MLPipeline/models/saved_models/scaler.pkl"
+MODEL_LOCAL_PATH="../../MLPipeline/models/saved_models/isolation_forest.pkl"
+SCALER_LOCAL_PATH="../../MLPipeline/models/saved_models/scaler.pkl"
 SNS_TOPIC_NAME="health-alerts"
 SMS_SUBSCRIPTION_NUMBER="+917702062828"
 EXPO_ACCESS_TOKEN=""
@@ -96,38 +99,51 @@ aws iam attach-role-policy \
 echo "⏳ Waiting for IAM role to propagate..."
 sleep 10
 
-# Step 3: Package Lambda function
-echo "📦 Packaging Lambda function..."
-rm -f function.zip
-rm -f inference.zip
-rm -f notify.zip
-rm -rf package
-pip install -r requirements.txt -t ./package
-cd package && zip -r ../function.zip . && cd ..
-zip -g function.zip lambda_function.py
-cp function.zip inference.zip
-zip -g inference.zip lambda_inference_sklearn.py
-cp function.zip notify.zip
-zip -g notify.zip sns_to_expo.py
+# Step 3: Create ECR repository for inference Lambda container
+echo "🐳 Creating ECR repository for inference Lambda..."
+ECR_REPO_NAME="health-inference-lambda"
+aws ecr create-repository \
+    --repository-name $ECR_REPO_NAME \
+    --region $REGION \
+    2>/dev/null || echo "  ECR repository already exists"
 
-# Step 3.2: Build Lambda layer for heavy ML deps (numpy/scipy/sklearn)
-echo "🧱 Building Lambda layer for ML dependencies..."
-rm -rf "$LAYER_DIR" "$LAYER_ZIP"
-mkdir -p "$LAYER_DIR/python"
+# Get ECR repository URI
+ECR_URI=$(aws ecr describe-repositories \
+    --repository-names $ECR_REPO_NAME \
+    --region $REGION \
+    --query 'repositories[0].repositoryUri' \
+    --output text)
 
-docker run --rm \
-    -v "$PWD/$LAYER_DIR":/opt \
-    -v "$PWD":/var/task \
-    public.ecr.aws/sam/build-python3.9 \
-    /bin/sh -c "pip install --no-cache-dir -r /var/task/requirements.txt -t /opt/python"
+echo "📦 ECR Repository: $ECR_URI"
 
-cd "$LAYER_DIR" && zip -r "../$LAYER_ZIP" python && cd ..
+# Login to ECR
+echo "🔑 Logging in to ECR..."
+aws ecr get-login-password --region $REGION | docker login --username AWS --password-stdin $ECR_URI
 
-# Step 3.1: Upload model artifacts to S3
+# Build inference Docker image
+echo "🔨 Building inference Lambda container image..."
+docker build -f Dockerfile.inference -t $ECR_REPO_NAME:latest .
+
+# Tag and push to ECR
+echo "⬆️  Pushing image to ECR..."
+docker tag $ECR_REPO_NAME:latest $ECR_URI:latest
+docker push $ECR_URI:latest
+
+# Step 3.2: Package Lambda functions (code only - boto3 in runtime)
+echo "📦 Packaging Lambda functions (code only)..."
+rm -f function.zip notify.zip
+zip function.zip lambda_function.py
+zip notify.zip sns_to_expo.py
+
+# Step 3.3: Create S3 bucket for model artifacts
+echo "🪣 Creating S3 bucket for model artifacts..."
+aws s3 mb s3://$MODEL_BUCKET --region $REGION 2>/dev/null || echo "  Bucket already exists or creation failed"
+
+# Step 3.4: Upload model artifacts to S3
 echo "🧠 Uploading model artifacts to S3..."
 if [[ -f "$MODEL_LOCAL_PATH" && -f "$SCALER_LOCAL_PATH" ]]; then
-    aws s3 cp "$MODEL_LOCAL_PATH" "s3://$MODEL_BUCKET/$MODEL_KEY" --region "$REGION"
-    aws s3 cp "$SCALER_LOCAL_PATH" "s3://$MODEL_BUCKET/$SCALER_KEY" --region "$REGION"
+    aws s3 cp "$MODEL_LOCAL_PATH" "s3://$MODEL_BUCKET/$MODEL_KEY" --region "$REGION" --no-verify-ssl || true
+    aws s3 cp "$SCALER_LOCAL_PATH" "s3://$MODEL_BUCKET/$SCALER_KEY" --region "$REGION" --no-verify-ssl || true
 else
     echo "⚠️  Model artifacts not found. Expected:"
     echo "   $MODEL_LOCAL_PATH"
@@ -139,70 +155,71 @@ fi
 ROLE_ARN="arn:aws:iam::${ACCOUNT_ID}:role/${ROLE_NAME}"
 
 echo "☁️  Deploying Lambda function..."
-aws lambda create-function \
-    --function-name $FUNCTION_NAME \
-    --runtime $RUNTIME \
-    --role $ROLE_ARN \
-    --handler $HANDLER \
-    --zip-file fileb://function.zip \
-    --timeout 30 \
-    --memory-size 512 \
-    --environment Variables={TABLE_NAME=$TABLE_NAME,REGION=$REGION} \
-    --region $REGION \
-    2>/dev/null || \
-aws lambda update-function-code \
-    --function-name $FUNCTION_NAME \
-    --zip-file fileb://function.zip \
-    --region $REGION
+if aws lambda get-function --function-name $FUNCTION_NAME --region $REGION &>/dev/null; then
+    aws lambda update-function-code \
+        --function-name $FUNCTION_NAME \
+        --zip-file fileb://function.zip \
+        --region $REGION
+else
+    aws lambda create-function \
+        --function-name $FUNCTION_NAME \
+        --runtime $RUNTIME \
+        --role $ROLE_ARN \
+        --handler $HANDLER \
+        --zip-file fileb://function.zip \
+        --timeout 30 \
+        --memory-size 512 \
+        --environment "{\"Variables\":{\"TABLE_NAME\":\"$TABLE_NAME\",\"REGION\":\"$REGION\"}}" \
+        --region $REGION
+fi
 
-echo "☁️  Deploying Anomaly Inference Lambda function..."
-aws lambda create-function \
-    --function-name $INFERENCE_FUNCTION_NAME \
-    --runtime $RUNTIME \
-    --role $ROLE_ARN \
-    --handler $INFERENCE_HANDLER \
-    --zip-file fileb://inference.zip \
-    --timeout 30 \
-    --memory-size 1024 \
-    --environment Variables={MODEL_BUCKET=$MODEL_BUCKET,MODEL_KEY=$MODEL_KEY,SCALER_KEY=$SCALER_KEY} \
-    --region $REGION \
-    2>/dev/null || \
-aws lambda update-function-code \
-    --function-name $INFERENCE_FUNCTION_NAME \
-    --zip-file fileb://inference.zip \
-    --region $REGION
+echo "☁️  Deploying Anomaly Inference Lambda function (Container Image)..."
+# Delete existing inference function if it's Zip type
+if aws lambda get-function --function-name $INFERENCE_FUNCTION_NAME --region $REGION &>/dev/null; then
+    CURRENT_TYPE=$(aws lambda get-function --function-name $INFERENCE_FUNCTION_NAME --region $REGION --query 'Configuration.PackageType' --output text)
+    if [[ "$CURRENT_TYPE" == "Zip" ]]; then
+        echo "  Deleting existing Zip-type function to recreate as Container Image..."
+        aws lambda delete-function --function-name $INFERENCE_FUNCTION_NAME --region $REGION
+        sleep 5
+    fi
+fi
 
-echo "☁️  Publishing ML dependency layer..."
-LAYER_VERSION_ARN=$(aws lambda publish-layer-version \
-    --layer-name $LAYER_NAME \
-    --zip-file fileb://$LAYER_ZIP \
-    --compatible-runtimes $RUNTIME \
-    --region $REGION \
-    --query 'LayerVersionArn' \
-    --output text)
-
-echo "🔗 Attaching ML layer to inference Lambda..."
-aws lambda update-function-configuration \
-    --function-name $INFERENCE_FUNCTION_NAME \
-    --layers "$LAYER_VERSION_ARN" \
-    --region $REGION
+# Create or update inference function with container image
+if aws lambda get-function --function-name $INFERENCE_FUNCTION_NAME --region $REGION &>/dev/null; then
+    aws lambda update-function-code \
+        --function-name $INFERENCE_FUNCTION_NAME \
+        --image-uri $ECR_URI:latest \
+        --region $REGION
+else
+    aws lambda create-function \
+        --function-name $INFERENCE_FUNCTION_NAME \
+        --package-type Image \
+        --code ImageUri=$ECR_URI:latest \
+        --role $ROLE_ARN \
+        --timeout 30 \
+        --memory-size 1024 \
+        --environment "{\"Variables\":{\"MODEL_BUCKET\":\"$MODEL_BUCKET\",\"MODEL_KEY\":\"$MODEL_KEY\",\"SCALER_KEY\":\"$SCALER_KEY\"}}" \
+        --region $REGION
+fi
 
 echo "☁️  Deploying SNS to Expo Lambda function..."
-aws lambda create-function \
-    --function-name $NOTIFY_FUNCTION_NAME \
-    --runtime $RUNTIME \
-    --role $ROLE_ARN \
-    --handler $NOTIFY_HANDLER \
-    --zip-file fileb://notify.zip \
-    --timeout 30 \
-    --memory-size 256 \
-    --environment Variables={PUSH_TOKEN_TABLE=$PUSH_TOKEN_TABLE,EXPO_ACCESS_TOKEN=$EXPO_ACCESS_TOKEN} \
-    --region $REGION \
-    2>/dev/null || \
-aws lambda update-function-code \
-    --function-name $NOTIFY_FUNCTION_NAME \
-    --zip-file fileb://notify.zip \
-    --region $REGION
+if aws lambda get-function --function-name $NOTIFY_FUNCTION_NAME --region $REGION &>/dev/null; then
+    aws lambda update-function-code \
+        --function-name $NOTIFY_FUNCTION_NAME \
+        --zip-file fileb://notify.zip \
+        --region $REGION
+else
+    aws lambda create-function \
+        --function-name $NOTIFY_FUNCTION_NAME \
+        --runtime $RUNTIME \
+        --role $ROLE_ARN \
+        --handler $NOTIFY_HANDLER \
+        --zip-file fileb://notify.zip \
+        --timeout 30 \
+        --memory-size 256 \
+        --environment "{\"Variables\":{\"PUSH_TOKEN_TABLE\":\"$PUSH_TOKEN_TABLE\",\"EXPO_ACCESS_TOKEN\":\"$EXPO_ACCESS_TOKEN\"}}" \
+        --region $REGION
+fi
 
 # Step 5: Create API Gateway
 echo "🌐 Creating API Gateway..."
@@ -438,7 +455,7 @@ aws apigateway create-usage-plan-key \
 # Update Lambda env with API key, SNS topic, and cloud inference function
 aws lambda update-function-configuration \
     --function-name $FUNCTION_NAME \
-    --environment Variables={TABLE_NAME=$TABLE_NAME,PUSH_TOKEN_TABLE=$PUSH_TOKEN_TABLE,REGION=$REGION,API_KEY=$API_KEY_VALUE,SNS_TOPIC_ARN=$SNS_TOPIC_ARN,CLOUD_INFERENCE_FUNCTION=$INFERENCE_FUNCTION_NAME} \
+    --environment "{\"Variables\":{\"TABLE_NAME\":\"$TABLE_NAME\",\"PUSH_TOKEN_TABLE\":\"$PUSH_TOKEN_TABLE\",\"REGION\":\"$REGION\",\"API_KEY\":\"$API_KEY_VALUE\",\"SNS_TOPIC_ARN\":\"$SNS_TOPIC_ARN\",\"CLOUD_INFERENCE_FUNCTION\":\"$INFERENCE_FUNCTION_NAME\"}}" \
     --region $REGION
 
 # Add permission for API Gateway to invoke Lambda
@@ -478,9 +495,9 @@ echo ""
 echo "2. Test the endpoint:"
 echo "   curl -X POST $API_ENDPOINT \\"
 echo "     -H 'Content-Type: application/json' \\"
-echo "     -H 'X-API-Key: $API_KEY_VALUE' \\\" 
+echo "     -H 'X-API-Key: $API_KEY_VALUE' \\"
 echo "     -d @test-payload.json"
 echo ""
 
 # Cleanup
-rm -rf package function.zip inference.zip notify.zip "$LAYER_DIR" "$LAYER_ZIP"
+rm -rf package function.zip notify.zip "$LAYER_DIR" "$LAYER_ZIP"

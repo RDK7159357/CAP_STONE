@@ -8,11 +8,11 @@ import android.os.IBinder
 import android.util.Log
 import androidx.concurrent.futures.await
 import androidx.health.services.client.HealthServices
-import androidx.health.services.client.MeasureCallback
-import androidx.health.services.client.data.Availability
+import androidx.health.services.client.PassiveListenerCallback
 import androidx.health.services.client.data.DataPointContainer
 import androidx.health.services.client.data.DataType
-import androidx.health.services.client.data.DeltaDataType
+import androidx.health.services.client.data.PassiveMonitoringCapabilities
+import androidx.health.services.client.data.PassiveMonitoringConfig
 import androidx.lifecycle.LifecycleService
 import androidx.lifecycle.lifecycleScope
 import com.capstone.healthmonitor.wear.data.repository.HealthRepository
@@ -23,11 +23,11 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
 import javax.inject.Inject
 
 /**
  * Foreground service that continuously monitors health metrics using Health Services API
+ * Uses PassiveMonitoringClient for continuous background data collection
  */
 @AndroidEntryPoint
 class HealthMonitoringService : LifecycleService() {
@@ -35,14 +35,13 @@ class HealthMonitoringService : LifecycleService() {
     @Inject
     lateinit var repository: HealthRepository
 
-    private val measureClient by lazy { HealthServices.getClient(this).measureClient }
+    private val passiveMonitoringClient by lazy { 
+        HealthServices.getClient(this).passiveMonitoringClient 
+    }
 
     // Job for the periodic saving task
     private var savingJob: Job? = null
 
-    // FIX 1 & 2: Use Double for heart rate/calories and Long for steps — these are
-    // the native types returned by the Health Services API. We cast to Float/Int
-    // only at the saveMetric() call site to match the HealthMetric model.
     @Volatile private var currentHeartRate: Double? = null
     @Volatile private var cumulativeSteps: Long? = null
     @Volatile private var cumulativeCalories: Double? = null
@@ -61,44 +60,24 @@ class HealthMonitoringService : LifecycleService() {
         private val DEVICE_ID = "wear_${android.os.Build.MODEL}"
     }
 
-    private val heartRateCallback = object : MeasureCallback {
-        override fun onAvailabilityChanged(dataType: DeltaDataType<*, *>, availability: Availability) {
-            Log.d(TAG, "Heart rate availability: $availability")
-        }
-
-        override fun onDataReceived(data: DataPointContainer) {
-            data.getData(DataType.HEART_RATE_BPM).forEach { dataPoint ->
-                val heartRate = dataPoint.value // Double
+    private val passiveListenerCallback = object : PassiveListenerCallback {
+        override fun onNewDataPointsReceived(dataPoints: DataPointContainer) {
+            dataPoints.getData(DataType.HEART_RATE_BPM).forEach { dataPoint ->
+                val heartRate = dataPoint.value
                 if (heartRate > 0.0) {
                     currentHeartRate = heartRate
-                    Log.d(TAG, "Heart Rate updated to: $heartRate BPM")
+                    Log.d(TAG, "Background Heart Rate: $heartRate BPM")
                 }
             }
-        }
-    }
 
-    private val stepsCallback = object : MeasureCallback {
-        override fun onAvailabilityChanged(dataType: DeltaDataType<*, *>, availability: Availability) {
-            Log.d(TAG, "Steps availability: $availability")
-        }
-
-        override fun onDataReceived(data: DataPointContainer) {
-            data.getData(DataType.STEPS).forEach { dataPoint ->
-                cumulativeSteps = (cumulativeSteps ?: 0L) + dataPoint.value // Long
-                Log.d(TAG, "Steps updated to: $cumulativeSteps")
+            dataPoints.getData(DataType.STEPS).forEach { dataPoint ->
+                cumulativeSteps = (cumulativeSteps ?: 0L) + dataPoint.value
+                Log.d(TAG, "Background Steps: $cumulativeSteps")
             }
-        }
-    }
 
-    private val caloriesCallback = object : MeasureCallback {
-        override fun onAvailabilityChanged(dataType: DeltaDataType<*, *>, availability: Availability) {
-            Log.d(TAG, "Calories availability: $availability")
-        }
-
-        override fun onDataReceived(data: DataPointContainer) {
-            data.getData(DataType.CALORIES).forEach { dataPoint ->
-                cumulativeCalories = (cumulativeCalories ?: 0.0) + dataPoint.value // Double
-                Log.d(TAG, "Calories updated to: $cumulativeCalories")
+            dataPoints.getData(DataType.CALORIES).forEach { dataPoint ->
+                cumulativeCalories = (cumulativeCalories ?: 0.0) + dataPoint.value
+                Log.d(TAG, "Background Calories: $cumulativeCalories")
             }
         }
     }
@@ -136,13 +115,32 @@ class HealthMonitoringService : LifecycleService() {
     private fun startHealthMonitoring() {
         lifecycleScope.launch {
             try {
-                Log.d(TAG, "Registering health monitoring callbacks")
-                measureClient.registerMeasureCallback(DataType.HEART_RATE_BPM, heartRateCallback)
-                measureClient.registerMeasureCallback(DataType.STEPS, stepsCallback)
-                measureClient.registerMeasureCallback(DataType.CALORIES, caloriesCallback)
-                Log.d(TAG, "Health monitoring started for HR, Steps, and Calories")
+                Log.d(TAG, "Checking passive monitoring capabilities...")
+                
+                // Check if the device supports passive monitoring
+                val capabilities = passiveMonitoringClient.getCapabilitiesAsync().await()
+                Log.d(TAG, "Passive monitoring supported data types: ${capabilities.supportedDataTypesPassiveMonitoring}")
+                
+                // Configure passive monitoring for continuous background data collection
+                val passiveMonitoringConfig = PassiveMonitoringConfig.builder()
+                    .setDataTypes(
+                        setOf(
+                            DataType.HEART_RATE_BPM,
+                            DataType.STEPS,
+                            DataType.CALORIES
+                        )
+                    )
+                    .build()
+
+                Log.d(TAG, "Setting up passive listener callback...")
+                passiveMonitoringClient.setPassiveListenerCallback(
+                    passiveMonitoringConfig,
+                    passiveListenerCallback
+                )
+                
+                Log.d(TAG, "Passive health monitoring started successfully for continuous background tracking")
             } catch (e: Exception) {
-                Log.e(TAG, "Failed to start health monitoring", e)
+                Log.e(TAG, "Failed to start passive health monitoring", e)
             }
         }
     }
@@ -212,10 +210,15 @@ class HealthMonitoringService : LifecycleService() {
         // Cancel the saving loop immediately
         savingJob?.cancel()
 
-        // Unregister without blocking the main thread during destruction
-        measureClient.unregisterMeasureCallbackAsync(DataType.HEART_RATE_BPM, heartRateCallback)
-        measureClient.unregisterMeasureCallbackAsync(DataType.STEPS, stepsCallback)
-        measureClient.unregisterMeasureCallbackAsync(DataType.CALORIES, caloriesCallback)
+        // Clear passive listener callback to stop background monitoring
+        lifecycleScope.launch {
+            try {
+                passiveMonitoringClient.clearPassiveListenerCallbackAsync().await()
+                Log.d(TAG, "Passive monitoring stopped")
+            } catch (e: Exception) {
+                Log.e(TAG, "Error stopping passive monitoring", e)
+            }
+        }
 
         super.onDestroy()
     }

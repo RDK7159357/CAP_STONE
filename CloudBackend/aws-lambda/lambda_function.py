@@ -45,8 +45,11 @@ def lambda_handler(event, context):
         body = json.loads(event.get('body', '{}'))
         
         # Validate API key (basic authentication)
-        api_key = event.get('headers', {}).get('X-API-Key', '')
+        # API Gateway normalizes headers - check case-insensitively
+        headers = event.get('headers', {})
+        api_key = headers.get('X-API-Key') or headers.get('x-api-key') or ''
         if not validate_api_key(api_key):
+            logger.warning(f"API key validation failed. Headers: {list(headers.keys())}")
             return error_response(401, 'Unauthorized: Invalid API key')
         
         # Route notification token registration
@@ -299,9 +302,14 @@ def validate_api_key(api_key):
     """
     Validate API key
     Use API Gateway API key if configured; otherwise allow any non-empty key.
+    If no expected key is set, assume API Gateway is handling authentication.
     """
     if expected_api_key:
-        return api_key == expected_api_key
+        result = api_key == expected_api_key
+        if not result:
+            logger.warning(f"Key mismatch. Expected starts with: {expected_api_key[:5]}..., Got starts with: {api_key[:5] if api_key else 'empty'}...")
+        return result
+    # If no expected key, API Gateway is handling auth - just check non-empty
     return len(api_key) > 0
 
 

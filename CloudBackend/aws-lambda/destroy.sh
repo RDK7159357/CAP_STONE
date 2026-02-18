@@ -4,6 +4,9 @@
 
 set -e
 
+# Disable AWS CLI pager
+export AWS_PAGER=""
+
 echo "🧹 Destroying Health Monitoring Cloud Backend..."
 
 # Configuration (match deploy.sh)
@@ -18,6 +21,8 @@ MODEL_BUCKET="health-ml-models"
 MODEL_KEY="isolation_forest/model.pkl"
 SCALER_KEY="isolation_forest/scaler.pkl"
 SNS_TOPIC_NAME="health-alerts"
+LAYER_NAME="health-ml-deps"
+ECR_REPO_NAME="health-inference-lambda"
 API_NAME="HealthMonitorAPI"
 API_KEY_NAME="HealthMonitorApiKey"
 USAGE_PLAN_NAME="HealthMonitorUsagePlan"
@@ -64,6 +69,31 @@ for fn in "$FUNCTION_NAME" "$INFERENCE_FUNCTION_NAME" "$NOTIFY_FUNCTION_NAME"; d
     aws lambda delete-function --function-name "$fn" --region $REGION || true
 done
 
+# Delete Lambda layer versions
+echo "🗑️  Deleting Lambda layer versions..."
+LAYER_VERSIONS=$(aws lambda list-layer-versions \
+    --layer-name "$LAYER_NAME" \
+    --query 'LayerVersions[*].Version' \
+    --output text \
+    --region $REGION 2>/dev/null || true)
+
+if [[ -n "$LAYER_VERSIONS" ]]; then
+    for version in $LAYER_VERSIONS; do
+        echo "   Deleting layer version $version..."
+        aws lambda delete-layer-version \
+            --layer-name "$LAYER_NAME" \
+            --version-number "$version" \
+            --region $REGION || true
+    done
+fi
+
+# Delete ECR repository
+echo "🗑️  Deleting ECR repository..."
+aws ecr delete-repository \
+    --repository-name "$ECR_REPO_NAME" \
+    --force \
+    --region $REGION 2>/dev/null || true
+
 # Delete SNS topic
 SNS_TOPIC_ARN=$(aws sns list-topics \
     --query "Topics[?contains(TopicArn, ':${SNS_TOPIC_NAME}')].TopicArn" \
@@ -81,11 +111,12 @@ for table in "$TABLE_NAME" "$PUSH_TOKEN_TABLE"; do
     aws dynamodb delete-table --table-name "$table" --region $REGION || true
 done
 
-# Remove model artifacts from S3 (objects only, not the bucket)
+# Remove model artifacts from S3 and delete bucket
 if [[ -n "$MODEL_BUCKET" ]]; then
-    echo "🗑️  Deleting S3 objects..."
-    aws s3 rm "s3://$MODEL_BUCKET/$MODEL_KEY" --region $REGION || true
-    aws s3 rm "s3://$MODEL_BUCKET/$SCALER_KEY" --region $REGION || true
+    echo "🗑️  Deleting S3 objects and bucket..."
+    aws s3 rm "s3://$MODEL_BUCKET/$MODEL_KEY" --region $REGION 2>/dev/null || true
+    aws s3 rm "s3://$MODEL_BUCKET/$SCALER_KEY" --region $REGION 2>/dev/null || true
+    aws s3 rb s3://$MODEL_BUCKET --region $REGION 2>/dev/null || true
 fi
 
 # Detach policies and delete IAM role

@@ -5,14 +5,11 @@ package com.capstone.healthmonitor.wear.data.network
  * Replace these values with your actual cloud backend endpoints
  */
 object ApiConfig {
-    // TODO: Replace with your actual API endpoint after deploying cloud backend
-    const val BASE_URL = "https://your-api-gateway-url.execute-api.us-east-1.amazonaws.com/prod/"
+    // AWS Lambda API Gateway endpoint (ap-south-2)
+    const val BASE_URL = "https://u8tkgz3vsf.execute-api.ap-south-2.amazonaws.com/prod/"
     
-    // Alternative for Google Cloud
-    // const val BASE_URL = "https://us-central1-your-project-id.cloudfunctions.net/"
-    
-    // API Key for authentication (if using API key authentication)
-    const val API_KEY = "your-api-key-here"
+    // API Key for authentication
+    const val API_KEY = "27tpgpLoMk7A8mDknvE8S8AhzwBeS6fm1U7KpQhT"
     
     // Timeouts
     const val CONNECT_TIMEOUT = 30L // seconds

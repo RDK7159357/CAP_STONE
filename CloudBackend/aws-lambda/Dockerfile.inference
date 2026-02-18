@@ -1,0 +1,13 @@
+FROM public.ecr.aws/lambda/python:3.9
+
+# Copy requirements
+COPY requirements-layer.txt ${LAMBDA_TASK_ROOT}/
+
+# Install ML dependencies
+RUN pip install --no-cache-dir -r ${LAMBDA_TASK_ROOT}/requirements-layer.txt
+
+# Copy function code
+COPY lambda_inference_sklearn.py ${LAMBDA_TASK_ROOT}/
+
+# Set the CMD to your handler
+CMD [ "lambda_inference_sklearn.lambda_handler" ]

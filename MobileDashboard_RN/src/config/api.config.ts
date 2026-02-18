@@ -4,18 +4,11 @@
  */
 
 export const ApiConfig = {
-  // Use mock API for development
-  // Replace with your actual endpoint when ready
-  baseUrl: 'http://localhost:3000/api/',
-  
-  // AWS API Gateway endpoint (update when ready)
-  // baseUrl: 'https://your-api-gateway-url.execute-api.us-east-1.amazonaws.com/prod/',
-  
-  // Alternative for Google Cloud
-  // baseUrl: 'https://us-central1-your-project-id.cloudfunctions.net/',
+  // AWS API Gateway endpoint (ap-south-2)
+  baseUrl: 'https://u8tkgz3vsf.execute-api.ap-south-2.amazonaws.com/prod/',
   
   // API Key for authentication
-  apiKey: 'development-key',
+  apiKey: '27tpgpLoMk7A8mDknvE8S8AhzwBeS6fm1U7KpQhT',
 
   // Demo user id used for token registration
   userId: 'user_001',
@@ -23,7 +16,7 @@ export const ApiConfig = {
   // Headers
   headers: {
     'Content-Type': 'application/json',
-    'x-api-key': 'development-key',
+    'x-api-key': '27tpgpLoMk7A8mDknvE8S8AhzwBeS6fm1U7KpQhT',
   },
   
   // Endpoints

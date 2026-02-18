@@ -31,6 +31,44 @@ captures/
 .navigation/
 output.json
 
+# Gradle
+gradle-wrapper.jar
+.gradle/
+**/build/
+!gradle/wrapper/gradle-wrapper.jar
+!**/src/main/**/build/
+!**/src/test/**/build/
+
+# Signing files
+gradle.properties
+keystore.properties
+
+# ========================================
+# React Native / Node.js
+# ========================================
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.npm
+.yarn
+.pnp.*
+
+# Metro bundler
+.metro-health-check*
+.expo/
+.expo-shared/
+
+# React Native
+ios/Pods/
+ios/build/
+android/app/build/
+*.jsbundle
+
+# Package manager lock files (optional - uncomment if you want to ignore)
+# package-lock.json
+# yarn.lock
+
 # ========================================
 # Python / ML Pipeline
 # ========================================
@@ -42,6 +80,9 @@ __pycache__/
 venv/
 env/
 ENV/
+.venv/
+pip-log.txt
+pip-delete-this-directory.txt
 *.egg-info/
 dist/
 *.egg
@@ -49,30 +90,57 @@ dist/
 .coverage
 htmlcov/
 .hypothesis/
+.tox/
+.nox/
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Virtual environments
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+.conda/
 
 # Jupyter Notebook
 .ipynb_checkpoints
 *.ipynb
 
-# ML Models
+# ML Models & Artifacts
 *.h5
 *.pkl
 *.joblib
 *.pt
 *.pth
 *.onnx
+*.tflite
 models/saved_models/
 models/checkpoints/
+models/lambda_export/*.pkl
+models/lambda_export/*.joblib
 *.pb
+*.tflite
+
+# Training outputs
+mlruns/
+runs/
+wandb/
 
 # Data files
 data/raw/*
 data/processed/*
+data/synthetic/*
 !data/raw/.gitkeep
 !data/processed/.gitkeep
+!data/synthetic/.gitkeep
 *.csv
 *.parquet
 *.feather
+*.h5
+*.hdf5
 
 # ========================================
 # Flutter / Mobile Dashboard
@@ -121,38 +189,131 @@ GoogleService-Info.plist
 # ========================================
 *.zip
 function.zip
+notify.zip
 lambda-layer.zip
+layer.zip
+layer_build/
 package/
+
+# Lambda deployment artifacts
+CloudBackend/aws-lambda/function.zip
+CloudBackend/aws-lambda/notify.zip
+CloudBackend/aws-lambda/layer.zip
+CloudBackend/aws-lambda/layer_build/
+CloudBackend/aws-lambda/package/
 
 # Terraform
 .terraform/
 *.tfstate
 *.tfstate.backup
 .terraform.lock.hcl
+terraform.tfvars
 
 # Serverless
 .serverless/
+
+# CDK
+cdk.out/
+.cdk.staging/
+
+# Docker
+docker-compose.override.yml
+*.tar
+*.tar.gz
 
 # ========================================
 # Environment & Secrets
 # ========================================
 .env
 .env.local
+.env.production
+.env.development
+.env.test
 .env.*.local
 secrets.yaml
+secrets.yml
 config/secrets.json
 *.pem
 *.key
 *.cert
+*.crt
+*.p12
+*.pfx
 
-# API Keys
+# API Keys & Credentials
 api_keys.txt
 credentials.json
+aws-credentials.json
+service-account.json
+
+# Local settings
+settings.local.json
+config.local.json
 
 # ========================================
-# IDE
+# Logs
+# ========================================
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+pnpm-debug.log*
+
+# Runtime logs
+*.log.*
+combined.log
+error.log
+access.log
+
+# ========================================
+# Testing
+# ========================================
+coverage/
+*.lcov
+test-results/
+allure-results/
+junit/
+.nyc_output/
+
+# ========================================
+# Databases
+# ========================================
+*.db
+*.sqlite
+*.sqlite3
+*.db-shm
+*.db-wal
+
+# ========================================
+# Documentation
+# ========================================
+docs/_build/
+site/
+.docusaurus/
+
+# ========================================
+# Temporary Files
+# ========================================
+tmp/
+temp/
+*.tmp
+*.bak
+*.cache
+*.swp
+*.swo
+*~
+.~lock.*
+
+# ========================================
+# IDE & Editors
 # ========================================
 .vscode/
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
 .idea/
 *.swp
 *.swo
@@ -163,44 +324,36 @@ credentials.json
 .project
 .settings/
 
+# NetBeans
+nbproject/
+nbbuild/
+nbdist/
+.nb-gradle/
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# Vim
+[._]*.s[a-v][a-z]
+[._]*.sw[a-p]
+[._]s[a-rt-v][a-z]
+[._]ss[a-gi-z]
+[._]sw[a-p]
+
 # ========================================
 # OS
 # ========================================
 .DS_Store
+.AppleDouble
+.LSOverride
 Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
 desktop.ini
-
-# ========================================
-# Logs
-# ========================================
-*.log
-logs/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-
-# ========================================
-# Testing
-# ========================================
-coverage/
-*.lcov
-test-results/
-allure-results/
-
-# ========================================
-# Documentation
-# ========================================
-docs/_build/
-site/
-
-# ========================================
-# Temporary Files
-# ========================================
-tmp/
-temp/
-*.tmp
-*.bak
-*.cache
+$RECYCLE.BIN/
+*.lnk
 
 # ========================================
 # Project Specific
@@ -209,16 +362,92 @@ temp/
 data/synthetic/*
 !data/synthetic/.gitkeep
 
-# Generated images
+# Generated images (except documentation)
 *.png
 *.jpg
-!docs/images/
-!assets/images/
+*.jpeg
+*.gif
+!docs/images/**
+!documentation/images/**
+!assets/images/**
+!MobileDashboard_RN/assets/**
+!WearOSApp/app/src/main/res/**
 
 # Compiled files
 *.o
 *.so
 *.dylib
 *.dll
+*.exe
 
+# Build outputs
+out/
+target/
+bin/
+obj/
+
+# Test outputs
+test_results.json
+test-payload.json
+
+# Shell scripts outputs
+*.sh.log
+
+# ========================================
+# Large Files & Binaries
+# ========================================
+# Binary model files (keep small test models)
+*.bin
+*.weights
+
+# Media files
+*.mp4
+*.mov
+*.avi
+*.mkv
+*.wav
+*.mp3
+*.flac
+
+# Archive files
+*.7z
+*.dmg
+*.gz
+*.iso
+*.jar
+*.rar
+*.tar
+*.zip
+*.tgz
+
+# ========================================
+# CI/CD
+# ========================================
+.github/workflows/.secrets
+
+# ========================================
+# Misc
+# ========================================
 .fake
+.ionide/
+.history/
+*.stackdump
+core
+
+# Backup files
+*.backup
+*~
+*.orig
+
+# Lock files (optional - uncomment to ignore)
+# *.lock
+
+# macOS Finder
+.Spotlight-V100
+.Trashes
+
+# Linux trash folder
+.Trash-*
+
+# Windows shortcuts
+*.lnk

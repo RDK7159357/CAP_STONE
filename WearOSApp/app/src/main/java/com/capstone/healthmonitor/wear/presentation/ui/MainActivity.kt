@@ -1,6 +1,7 @@
 package com.capstone.healthmonitor.wear.presentation.ui
 
 import android.Manifest
+import android.app.ActivityManager
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -80,6 +81,7 @@ import com.capstone.healthmonitor.wear.domain.usecase.TfLiteSanityCheck
 import com.capstone.healthmonitor.wear.service.DataSyncWorker
 import com.capstone.healthmonitor.wear.service.HealthMonitoringService
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.launch
@@ -250,6 +252,15 @@ fun HealthMonitorScreen(
     var lastAnomalyId by remember { mutableStateOf<Long?>(null) }
     val haptic = LocalHapticFeedback.current
     val context = LocalContext.current
+    var isServiceRunning by remember { mutableStateOf(false) }
+
+    // Check service status periodically
+    LaunchedEffect(Unit) {
+        while (true) {
+            isServiceRunning = isHealthServiceRunning(context)
+            delay(3000) // Check every 3 seconds
+        }
+    }
 
     LaunchedEffect(settingsState) {
         syncIntervalMinutes = settingsState.syncIntervalMinutes.toFloat()
@@ -292,7 +303,8 @@ fun HealthMonitorScreen(
             onOpenSettings = { currentScreen = Screen.Settings },
             onOpenManualEntry = { currentScreen = Screen.ManualEntry },
             onOpenExport = { currentScreen = Screen.Export },
-            anomalyMetric = anomalyMetric
+            anomalyMetric = anomalyMetric,
+            isServiceRunning = isServiceRunning
         )
 
         Screen.Anomaly -> AnomalyAlertScreen(
@@ -357,7 +369,8 @@ private fun HomeScreen(
     onOpenSettings: () -> Unit,
     onOpenManualEntry: () -> Unit,
     onOpenExport: () -> Unit,
-    anomalyMetric: HealthMetric?
+    anomalyMetric: HealthMetric?,
+    isServiceRunning: Boolean
 ) {
     val listState = rememberScalingLazyListState()
     val unsyncedCount = healthMetrics.count { !it.isSynced }
@@ -384,32 +397,57 @@ private fun HomeScreen(
 
             item { Spacer(modifier = Modifier.height(12.dp)) }
 
-            // 2. Status Indicators
+            // 2. Status Indicators - Background Monitoring
             item {
-                Text(
-                    text = "Sync every ${syncIntervalMinutes}m",
-                    style = MaterialTheme.typography.caption2,
-                    color = Color.Gray
-                )
-            }
-
-            item { Spacer(modifier = Modifier.height(8.dp)) }
-
-            item {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(text = "● ", color = MaterialTheme.colors.secondary)
-                    Text(text = "Monitoring Active", color = MaterialTheme.colors.secondary)
+                WearCard(
+                    modifier = Modifier.fillMaxWidth(0.9f),
+                    onClick = {}
+                ) {
+                    Column(
+                        modifier = Modifier.padding(8.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = if (isServiceRunning) "● " else "○ ",
+                                color = if (isServiceRunning) Color(0xFF2ECC71) else Color.Gray,
+                                fontSize = 16.sp
+                            )
+                            Text(
+                                text = if (isServiceRunning) "Background Monitoring" else "Service Stopped",
+                                color = if (isServiceRunning) Color(0xFF2ECC71) else Color.Gray,
+                                style = MaterialTheme.typography.caption1,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = "Auto-running 24/7",
+                            style = MaterialTheme.typography.caption2,
+                            color = Color.Gray
+                        )
+                    }
                 }
             }
 
-            item { Spacer(modifier = Modifier.height(8.dp)) }
+            item { Spacer(modifier = Modifier.height(6.dp)) }
 
             item {
-                Text(
-                    text = if (unsyncedCount > 0) "⏳ $unsyncedCount pending sync" else "✓ All synced",
-                    style = MaterialTheme.typography.caption2,
-                    color = if (unsyncedCount > 0) Color(0xFFF39C12) else Color(0xFF2ECC71)
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(0.9f),
+                    horizontalArrangement = Arrangement.SpaceEvenly
+                ) {
+                    Text(
+                        text = "☁️ Sync: ${syncIntervalMinutes}m",
+                        style = MaterialTheme.typography.caption2,
+                        color = Color.Gray
+                    )
+                    Text(
+                        text = if (unsyncedCount > 0) "⏳ $unsyncedCount pending" else "✓ Synced",
+                        style = MaterialTheme.typography.caption2,
+                        color = if (unsyncedCount > 0) Color(0xFFF39C12) else Color(0xFF2ECC71)
+                    )
+                }
             }
 
             item { Spacer(modifier = Modifier.height(10.dp)) }
@@ -723,6 +761,34 @@ private fun SettingsScreen(
         ) {
             item { Spacer(modifier = Modifier.height(18.dp)) }
             item { Text("Settings", style = MaterialTheme.typography.title3, color = MaterialTheme.colors.primary) }
+            item { Spacer(modifier = Modifier.height(6.dp)) }
+            
+            // Info about automatic monitoring
+            item {
+                WearCard(
+                    modifier = Modifier.fillMaxWidth(0.9f),
+                    onClick = {}
+                ) {
+                    Column(
+                        modifier = Modifier.padding(8.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = "ℹ️ Continuous Monitoring",
+                            style = MaterialTheme.typography.caption1,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF3498DB)
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = "Health data collected 24/7 in background",
+                            style = MaterialTheme.typography.caption2,
+                            color = Color.Gray,
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                }
+            }
             item { Spacer(modifier = Modifier.height(10.dp)) }
 
             item { Text("Sync Interval (${syncInterval.toInt()} min)", style = MaterialTheme.typography.caption1) }
@@ -990,4 +1056,13 @@ private enum class Screen { Home, Anomaly, Trends, Settings, ManualEntry, Export
 private fun formatTime(timestamp: Long): String {
     val sdf = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault())
     return sdf.format(java.util.Date(timestamp))
+}
+
+// Helper function to check if HealthMonitoringService is running
+private fun isHealthServiceRunning(context: Context): Boolean {
+    val activityManager = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+    @Suppress("DEPRECATION")
+    return activityManager.getRunningServices(Int.MAX_VALUE).any { serviceInfo ->
+        serviceInfo.service.className == HealthMonitoringService::class.java.name
+    }
 }
