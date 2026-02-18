@@ -51,6 +51,7 @@ import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import androidx.wear.compose.foundation.lazy.ScalingLazyColumn
 import androidx.wear.compose.foundation.lazy.rememberScalingLazyListState
+import androidx.wear.compose.foundation.lazy.items
 import androidx.wear.compose.material.Button
 import androidx.wear.compose.material.Card as WearCard
 import androidx.wear.compose.material.Chip
@@ -136,10 +137,12 @@ class MainActivity : ComponentActivity() {
         // Run TFLite sanity checks at startup
         tfLiteSanityCheck.runChecks()
 
+        // Start monitoring automatically
+        checkPermissionsAndStart(DEFAULT_SYNC_INTERVAL_MINUTES)
+
         setContent {
             HealthMonitorTheme {
                 HealthMonitorScreen(
-                    onStartMonitoring = { interval -> checkPermissionsAndStart(interval) },
                     healthMetricsFlow = healthRepository.getLatestMetrics(50),
                     healthRepository = healthRepository,
                     defaultUserId = DEFAULT_USER_ID,
@@ -197,7 +200,7 @@ class MainActivity : ComponentActivity() {
         workManager.cancelUniqueWork(DataSyncWorker.WORK_NAME)
         workManager.enqueueUniquePeriodicWork(
             DataSyncWorker.WORK_NAME,
-            ExistingPeriodicWorkPolicy.REPLACE,
+            ExistingPeriodicWorkPolicy.UPDATE,
             syncWorkRequest
         )
 
@@ -228,7 +231,6 @@ fun HealthMonitorTheme(content: @Composable () -> Unit) {
 
 @Composable
 fun HealthMonitorScreen(
-    onStartMonitoring: (Int) -> Unit,
     healthMetricsFlow: Flow<List<HealthMetric>> = emptyFlow(),
     healthRepository: HealthRepository,
     defaultUserId: String,
@@ -238,7 +240,6 @@ fun HealthMonitorScreen(
     onSaveSettings: suspend (SettingsState) -> Unit
 ) {
     val scope = rememberCoroutineScope()
-    var isMonitoring by remember { mutableStateOf(false) }
     var currentScreen by remember { mutableStateOf(Screen.Home) }
     val settingsState by settingsFlow.collectAsState(initial = SettingsState())
     var syncIntervalMinutes by rememberSaveable { mutableStateOf(settingsState.syncIntervalMinutes.toFloat()) }
@@ -262,8 +263,12 @@ fun HealthMonitorScreen(
     val latestMetric = healthMetrics.firstOrNull()
     // Anomaly detection: use local rule initially, cloud score will override on sync response
     val anomalyMetric = healthMetrics.firstOrNull { (it.heartRate ?: 0f) >= 140f }
-    val averageHeartRate = healthMetrics.mapNotNull { it.heartRate }.average().takeIf { !it.isNaN() }?.toFloat()
-
+    val heartRateList = healthMetrics.mapNotNull { it.heartRate }
+    val averageHeartRate = if (heartRateList.isNotEmpty()) {
+        heartRateList.average().toFloat()
+    } else {
+        0f
+    }
     LaunchedEffect(anomalyMetric?.id, notificationsEnabled, hapticsEnabled) {
         val newId = anomalyMetric?.id
         if (newId != null && newId != lastAnomalyId) {
@@ -281,12 +286,7 @@ fun HealthMonitorScreen(
         Screen.Home -> HomeScreen(
             healthMetrics = healthMetrics,
             latestMetric = latestMetric,
-            isMonitoring = isMonitoring,
             syncIntervalMinutes = syncIntervalMinutes.toInt(),
-            onStartMonitoring = { interval ->
-                onStartMonitoring(interval)
-                isMonitoring = true
-            },
             onOpenAnomaly = { currentScreen = Screen.Anomaly },
             onOpenTrends = { currentScreen = Screen.Trends },
             onOpenSettings = { currentScreen = Screen.Settings },
@@ -351,9 +351,7 @@ fun HealthMonitorScreen(
 private fun HomeScreen(
     healthMetrics: List<HealthMetric>,
     latestMetric: HealthMetric?,
-    isMonitoring: Boolean,
     syncIntervalMinutes: Int,
-    onStartMonitoring: (Int) -> Unit,
     onOpenAnomaly: () -> Unit,
     onOpenTrends: () -> Unit,
     onOpenSettings: () -> Unit,
@@ -372,6 +370,7 @@ private fun HomeScreen(
             state = listState,
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
+            // 1. Header Section
             item { Spacer(modifier = Modifier.height(28.dp)) }
 
             item {
@@ -385,180 +384,156 @@ private fun HomeScreen(
 
             item { Spacer(modifier = Modifier.height(12.dp)) }
 
+            // 2. Status Indicators
+            item {
+                Text(
+                    text = "Sync every ${syncIntervalMinutes}m",
+                    style = MaterialTheme.typography.caption2,
+                    color = Color.Gray
+                )
+            }
+
+            item { Spacer(modifier = Modifier.height(8.dp)) }
+
             item {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = "Sync every ${syncIntervalMinutes}m",
-                        style = MaterialTheme.typography.caption2,
-                        color = Color.Gray
-                    )
+                    Text(text = "● ", color = MaterialTheme.colors.secondary)
+                    Text(text = "Monitoring Active", color = MaterialTheme.colors.secondary)
                 }
             }
 
             item { Spacer(modifier = Modifier.height(8.dp)) }
 
-            if (!isMonitoring) {
+            item {
+                Text(
+                    text = if (unsyncedCount > 0) "⏳ $unsyncedCount pending sync" else "✓ All synced",
+                    style = MaterialTheme.typography.caption2,
+                    color = if (unsyncedCount > 0) Color(0xFFF39C12) else Color(0xFF2ECC71)
+                )
+            }
+
+            item { Spacer(modifier = Modifier.height(10.dp)) }
+
+            // 3. Latest Metrics Display (Large Heart Rate)
+            if (latestMetric != null) {
                 item {
-                    Button(
-                        onClick = { onStartMonitoring(syncIntervalMinutes) },
-                        modifier = Modifier.fillMaxWidth(0.8f)
+                    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
+                        Text(text = "❤️", style = MaterialTheme.typography.display1)
+                        // Safe conversion to Int for display
+                        val hrValue = latestMetric.heartRate?.toInt() ?: 0
+                        Text(text = "$hrValue", style = MaterialTheme.typography.display1, color = Color(0xFFE74C3C))
+                        Text(text = "BPM", style = MaterialTheme.typography.caption1, color = Color.Gray)
+                    }
+                }
+
+                item { Spacer(modifier = Modifier.height(12.dp)) }
+
+                // 4. Steps and Calories Grid
+                item {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(0.9f),
+                        horizontalArrangement = Arrangement.SpaceEvenly
                     ) {
-                        Text("Start Monitoring", modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp))
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(text = "🚶")
+                            Text(text = "${latestMetric.steps ?: 0}", color = Color(0xFF3498DB))
+                            Text(text = "steps", style = MaterialTheme.typography.caption2, color = Color.Gray)
+                        }
+
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(text = "🔥")
+                            val calValue = latestMetric.calories?.toInt() ?: 0
+                            Text(text = "$calValue", color = Color(0xFFF39C12))
+                            Text(text = "kcal", style = MaterialTheme.typography.caption2, color = Color.Gray)
+                        }
+                    }
+                }
+
+                item { Spacer(modifier = Modifier.height(12.dp)) }
+
+                // 5. Battery and Storage Stats
+                if (latestMetric.batteryLevel != null) {
+                    item {
+                        val batteryColor = if (latestMetric.batteryLevel < 20) Color(0xFFE74C3C) else Color.Gray
+                        Text(text = "🔋 ${latestMetric.batteryLevel}%", style = MaterialTheme.typography.caption2, color = batteryColor)
+                    }
+                    item { Spacer(modifier = Modifier.height(6.dp)) }
+                }
+
+                item {
+                    Text(text = "${healthMetrics.size} metrics stored", style = MaterialTheme.typography.caption2, color = Color.Gray)
+                }
+
+                item { Spacer(modifier = Modifier.height(12.dp)) }
+
+                // 6. Anomaly Chip
+                if (anomalyMetric != null) {
+                    item {
+                        Chip(
+                            modifier = Modifier.fillMaxWidth(0.9f),
+                            onClick = onOpenAnomaly,
+                            label = { Text("Anomaly: ${(anomalyMetric.heartRate?.toInt() ?: 0)} BPM") },
+                            secondaryLabel = { Text("Tap to view details") },
+                            icon = { Text("⚠️") }
+                        )
+                    }
+                    item { Spacer(modifier = Modifier.height(10.dp)) }
+                }
+
+                // 7. Recent History Section
+                item {
+                    Text(text = "Recent History", style = MaterialTheme.typography.caption1, color = MaterialTheme.colors.primary)
+                }
+
+                item { Spacer(modifier = Modifier.height(6.dp)) }
+
+                // FIXED: Using 'items' DSL instead of manual 'forEach' to prevent recomposition crashes
+                items(healthMetrics.take(5)) { metric ->
+                    val displayHr = metric.heartRate?.toInt() ?: 0
+                    val displaySteps = metric.steps ?: 0
+                    val displayTime = formatTime(metric.timestamp)
+
+                    RegularCard(
+                        modifier = Modifier.fillMaxWidth(0.9f).padding(vertical = 2.dp),
+                        onClick = { /* Could navigate to detail view */ }
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(8.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column {
+                                Text(text = "$displayHr BPM", style = MaterialTheme.typography.caption1, color = Color(0xFFE74C3C))
+                                Text(text = displayTime, style = MaterialTheme.typography.caption2, color = Color.Gray)
+                            }
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(text = "$displaySteps👣 ", style = MaterialTheme.typography.caption2, color = Color(0xFF3498DB))
+                                Text(text = if (metric.isSynced) "✓" else "⏳", color = if (metric.isSynced) Color(0xFF2ECC71) else Color.Gray)
+                            }
+                        }
                     }
                 }
             } else {
-                item {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.Center
-                    ) {
-                        Text(text = "● ", style = MaterialTheme.typography.body1, color = MaterialTheme.colors.secondary)
-                        Text(text = "Monitoring Active", style = MaterialTheme.typography.body1, color = MaterialTheme.colors.secondary)
-                    }
-                }
-
-                item { Spacer(modifier = Modifier.height(8.dp)) }
-
-                item {
-                    Text(
-                        text = if (unsyncedCount > 0) "⏳ $unsyncedCount pending sync" else "✓ All synced",
-                        style = MaterialTheme.typography.caption2,
-                        color = if (unsyncedCount > 0) Color(0xFFF39C12) else Color(0xFF2ECC71)
-                    )
-                }
-
-                item { Spacer(modifier = Modifier.height(10.dp)) }
-
-                if (latestMetric != null) {
-                    item {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
-                            Text(text = "❤️", style = MaterialTheme.typography.display1)
-                            Text(text = "${latestMetric.heartRate?.toInt() ?: 0}", style = MaterialTheme.typography.display1, color = Color(0xFFE74C3C))
-                            Text(text = "BPM", style = MaterialTheme.typography.caption1, color = Color.Gray)
-                        }
-                    }
-
-                    item { Spacer(modifier = Modifier.height(12.dp)) }
-
-                    item {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(0.9f),
-                            horizontalArrangement = Arrangement.SpaceEvenly
-                        ) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Text(text = "🚶", style = MaterialTheme.typography.body1)
-                                Text(text = "${latestMetric.steps ?: 0}", style = MaterialTheme.typography.title3, color = Color(0xFF3498DB))
-                                Text(text = "steps", style = MaterialTheme.typography.caption2, color = Color.Gray)
-                            }
-
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Text(text = "🔥", style = MaterialTheme.typography.body1)
-                                Text(text = "${latestMetric.calories?.toInt() ?: 0}", style = MaterialTheme.typography.title3, color = Color(0xFFF39C12))
-                                Text(text = "kcal", style = MaterialTheme.typography.caption2, color = Color.Gray)
-                            }
-                        }
-                    }
-
-                    item { Spacer(modifier = Modifier.height(12.dp)) }
-
-                    if (latestMetric.batteryLevel != null) {
-                        item {
-                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
-                                val batteryColor = if (latestMetric.batteryLevel < 20) Color(0xFFE74C3C) else Color.Gray
-                                Text(text = "🔋 ${latestMetric.batteryLevel}%", style = MaterialTheme.typography.caption2, color = batteryColor)
-                            }
-                        }
-
-                        item { Spacer(modifier = Modifier.height(6.dp)) }
-                    }
-
-                    item {
-                        Text(
-                            text = "${healthMetrics.size} metrics stored",
-                            style = MaterialTheme.typography.caption2,
-                            color = Color.Gray
-                        )
-                    }
-
-                    item { Spacer(modifier = Modifier.height(12.dp)) }
-
-                    if (anomalyMetric != null) {
-                        item {
-                            Chip(
-                                modifier = Modifier.fillMaxWidth(0.9f),
-                                onClick = onOpenAnomaly,
-                                label = { Text("Anomaly detected: ${(anomalyMetric.heartRate ?: 0f).toInt()} BPM", color = Color.White) },
-                                secondaryLabel = { Text("View details", color = Color.LightGray) },
-                                icon = { Text("⚠️", fontSize = 16.sp) }
-                            )
-                        }
-
-                        item { Spacer(modifier = Modifier.height(6.dp)) }
-                    }
-
-                    item {
-                        Text(text = "Recent History", style = MaterialTheme.typography.caption1, color = MaterialTheme.colors.primary)
-                    }
-
-                    item { Spacer(modifier = Modifier.height(6.dp)) }
-
-                    healthMetrics.take(5).forEach { metric ->
-                        item {
-                            RegularCard(
-                                modifier = Modifier
-                                    .fillMaxWidth(0.9f)
-                                    .padding(vertical = 2.dp),
-                                onClick = { }
-                            ) {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(8.dp),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Column {
-                                        Text(text = "${metric.heartRate?.toInt() ?: 0} BPM", style = MaterialTheme.typography.caption1, color = Color(0xFFE74C3C))
-                                        Text(text = formatTime(metric.timestamp), style = MaterialTheme.typography.caption2, color = Color.Gray)
-                                    }
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Text(text = "${metric.steps ?: 0}👣 ", style = MaterialTheme.typography.caption2, color = Color(0xFF3498DB))
-                                        if (!metric.isSynced) {
-                                            Text(text = "⏳", style = MaterialTheme.typography.caption2)
-                                        } else {
-                                            Text(text = "✓", style = MaterialTheme.typography.caption2, color = Color(0xFF2ECC71))
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                } else {
-                    item { Text(text = "Waiting for data...", style = MaterialTheme.typography.caption2, color = Color.Gray) }
-                }
+                // Initial State
+                item { Text(text = "Waiting for data...", color = Color.Gray) }
             }
 
+            // 8. Navigation Buttons
             item { Spacer(modifier = Modifier.height(12.dp)) }
 
             item {
-                Row(
-                    modifier = Modifier.fillMaxWidth(0.9f),
-                    horizontalArrangement = Arrangement.SpaceEvenly
-                ) {
-                    Chip(onClick = onOpenTrends, label = { Text("Trends") })
-                    Chip(onClick = onOpenSettings, label = { Text("Settings") })
+                Row(modifier = Modifier.fillMaxWidth(0.9f), horizontalArrangement = Arrangement.SpaceEvenly) {
+                    Chip(onClick = onOpenTrends, label = { Text("Trends") }, modifier = Modifier.weight(1f).padding(horizontal = 2.dp))
+                    Chip(onClick = onOpenSettings, label = { Text("Settings") }, modifier = Modifier.weight(1f).padding(horizontal = 2.dp))
                 }
             }
 
             item { Spacer(modifier = Modifier.height(6.dp)) }
 
             item {
-                Row(
-                    modifier = Modifier.fillMaxWidth(0.9f),
-                    horizontalArrangement = Arrangement.SpaceEvenly
-                ) {
-                    Chip(onClick = onOpenManualEntry, label = { Text("Manual") })
-                    Chip(onClick = onOpenExport, label = { Text("Export") })
+                Row(modifier = Modifier.fillMaxWidth(0.9f), horizontalArrangement = Arrangement.SpaceEvenly) {
+                    Chip(onClick = onOpenManualEntry, label = { Text("Manual") }, modifier = Modifier.weight(1f).padding(horizontal = 2.dp))
+                    Chip(onClick = onOpenExport, label = { Text("Export") }, modifier = Modifier.weight(1f).padding(horizontal = 2.dp))
                 }
             }
 
@@ -967,7 +942,12 @@ private fun buildCsv(metrics: List<HealthMetric>): String {
     if (metrics.isEmpty()) return "No data available"
     val header = "timestamp,heartRate,steps,calories,isSynced"
     val rows = metrics.joinToString("\n") { metric ->
-        "${formatTime(metric.timestamp)},${metric.heartRate ?: 0f},${metric.steps ?: 0},${metric.calories ?: 0f},${metric.isSynced}"
+        // Ensure every field has a default value for the CSV string
+        val ts = formatTime(metric.timestamp)
+        val hr = metric.heartRate ?: 0f
+        val st = metric.steps ?: 0
+        val cal = metric.calories ?: 0f
+        "$ts,$hr,$st,$cal,${metric.isSynced}"
     }
     return "$header\n$rows"
 }

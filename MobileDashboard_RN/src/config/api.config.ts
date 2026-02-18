@@ -16,6 +16,9 @@ export const ApiConfig = {
   
   // API Key for authentication
   apiKey: 'development-key',
+
+  // Demo user id used for token registration
+  userId: 'user_001',
   
   // Headers
   headers: {
@@ -28,6 +31,7 @@ export const ApiConfig = {
     healthData: 'health-data/ingest',
     sync: 'health-data/sync',
     history: 'health-data/history',
+    registerPushToken: 'notifications/register',
   },
   
   // Timeouts (in milliseconds)

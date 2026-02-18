@@ -65,8 +65,19 @@ def generate_test_samples(scenario: str, n_samples: int = 10, seed: int = 42) ->
 def test_isolation_forest(model_path: str) -> Dict[str, Any]:
     """Test Isolation Forest model"""
     model_data = load_sklearn_model(model_path)
-    model = model_data['model']
-    scaler = model_data['scaler']
+
+    # Handle different serialization formats: dict, tuple, or bare estimator
+    model = None
+    scaler = None
+    if isinstance(model_data, dict):
+        model = model_data.get("model", model_data)
+        scaler = model_data.get("scaler")
+    elif isinstance(model_data, (list, tuple)) and len(model_data) >= 1:
+        model = model_data[0]
+        scaler = model_data[1] if len(model_data) > 1 else None
+    else:
+        model = model_data
+        scaler = getattr(model, "scaler", None)
     
     results = {
         "model_path": model_path,
@@ -86,9 +97,9 @@ def test_isolation_forest(model_path: str) -> Dict[str, Any]:
     for scenario in scenarios:
         samples = generate_test_samples(scenario, n_samples=50)
         
-        # Scale and predict
+        # Scale and predict (fallback to raw samples if scaler is absent)
         start_time = time.perf_counter()
-        X_scaled = scaler.transform(samples)
+        X_scaled = scaler.transform(samples) if scaler is not None else samples
         scores = model.score_samples(X_scaled)
         predictions = model.predict(X_scaled)
         inference_time = (time.perf_counter() - start_time) * 1000  # ms
@@ -126,11 +137,15 @@ def test_scaler(scaler_path: str) -> Dict[str, Any]:
     
     scaler = joblib.load(scaler_path)
     
+    feature_names = getattr(scaler, 'feature_names_in_', None)
+    if isinstance(feature_names, np.ndarray):
+        feature_names = feature_names.tolist()
+
     results = {
         "scaler_path": scaler_path,
         "scaler_type": type(scaler).__name__,
-        "n_features": scaler.n_features_in_,
-        "feature_names": getattr(scaler, 'feature_names_in_', None),
+        "n_features": int(scaler.n_features_in_),
+        "feature_names": feature_names,
         "mean": scaler.mean_.tolist() if hasattr(scaler, 'mean_') else None,
         "scale": scaler.scale_.tolist() if hasattr(scaler, 'scale_') else None,
         "tests": []
@@ -145,8 +160,8 @@ def test_scaler(scaler_path: str) -> Dict[str, Any]:
     
     results["tests"].append({
         "operation": "transform",
-        "input_shape": test_samples.shape,
-        "output_shape": scaled.shape,
+        "input_shape": list(test_samples.shape),
+        "output_shape": list(scaled.shape),
         "output_mean": float(np.mean(scaled)),
         "output_std": float(np.std(scaled)),
         "time_ms": transform_time,

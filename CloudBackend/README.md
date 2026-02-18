@@ -95,7 +95,7 @@ cdk deploy
 ```bash
 aws lambda update-function-configuration \
     --function-name HealthDataIngestion \
-    --environment Variables={TABLE_NAME=HealthMetrics,REGION=us-east-1}
+    --environment Variables={TABLE_NAME=HealthMetrics,REGION=ap-south-2}
 ```
 
 ### 4. Get API Endpoint

@@ -6,6 +6,7 @@ import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import * as Device from 'expo-device';
 import Constants from 'expo-constants';
+import { ApiConfig } from '@/config/api.config';
 
 // Configure notification behavior
 Notifications.setNotificationHandler({
@@ -73,14 +74,45 @@ class NotificationService {
     this.expoPushToken = token.data;
     console.log('Expo push token:', this.expoPushToken);
 
-    // TODO: Send token to backend server
+    await this.sendTokenToBackend(this.expoPushToken);
 
     // Listen for token refresh
     this.tokenSubscription = Notifications.addPushTokenListener((token) => {
       this.expoPushToken = token.data;
       console.log('Push token refreshed:', token.data);
-      // TODO: Send updated token to backend
+      this.sendTokenToBackend(token.data);
     });
+  }
+
+  private getDeviceId(): string {
+    return (
+      (Constants as any).deviceId ||
+      (Constants as any).sessionId ||
+      'mobile'
+    );
+  }
+
+  private async sendTokenToBackend(token: string): Promise<void> {
+    if (!token) {
+      return;
+    }
+
+    const payload = {
+      userId: ApiConfig.userId,
+      deviceId: this.getDeviceId(),
+      expoPushToken: token,
+      platform: Platform.OS,
+    };
+
+    try {
+      await fetch(`${ApiConfig.baseUrl}${ApiConfig.endpoints.registerPushToken}`, {
+        method: 'POST',
+        headers: ApiConfig.headers,
+        body: JSON.stringify(payload),
+      });
+    } catch (error) {
+      console.error('Failed to register push token:', error);
+    }
   }
 
   private setupNotificationListeners(): void {

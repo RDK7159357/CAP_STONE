@@ -70,7 +70,8 @@ def run_activity_test(model_path: str) -> Dict[str, Any]:
             "top_class": top_idx,
             "top_score": float(output[top_idx]),
             "probabilities": output.tolist(),
-            "valid_probability": validate_probabilities(output),
+            # Convert numpy.bool_ to native bool for JSON serialization
+            "valid_probability": bool(validate_probabilities(output)),
             "inference_time_ms": inference_time,
         })
 

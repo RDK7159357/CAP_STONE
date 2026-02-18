@@ -56,6 +56,8 @@ android {
 
 dependencies {
     // Wear OS
+    implementation("com.google.guava:guava:30.1.1-android")
+    implementation("androidx.concurrent:concurrent-futures-ktx:1.1.0")
     implementation("androidx.wear:wear:1.3.0")
     implementation("com.google.android.support:wearable:2.9.0")
     compileOnly("com.google.android.wearable:wearable:2.9.0")
@@ -69,7 +71,7 @@ dependencies {
     implementation("androidx.activity:activity-compose:1.8.1")
 
     // Health Services API
-    implementation("androidx.health:health-services-client:1.0.0-rc02")
+    implementation("androidx.health:health-services-client:1.0.0")
 
     // Room Database
     implementation("androidx.room:room-runtime:2.6.0")

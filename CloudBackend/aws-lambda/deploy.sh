@@ -8,11 +8,27 @@ echo "🚀 Deploying Health Monitoring Cloud Backend..."
 
 # Configuration
 FUNCTION_NAME="HealthDataIngestion"
+INFERENCE_FUNCTION_NAME="HealthAnomalyInference"
+NOTIFY_FUNCTION_NAME="HealthSnsToExpo"
 RUNTIME="python3.9"
 HANDLER="lambda_function.lambda_handler"
+INFERENCE_HANDLER="lambda_inference_sklearn.lambda_handler"
+NOTIFY_HANDLER="sns_to_expo.lambda_handler"
 ROLE_NAME="HealthMonitorLambdaRole"
 TABLE_NAME="HealthMetrics"
-REGION="us-east-1"
+PUSH_TOKEN_TABLE="HealthPushTokens"
+REGION="ap-south-2"
+MODEL_BUCKET="health-ml-models"
+MODEL_KEY="isolation_forest/model.pkl"
+SCALER_KEY="isolation_forest/scaler.pkl"
+MODEL_LOCAL_PATH="MLPipeline/models/saved_models/isolation_forest.pkl"
+SCALER_LOCAL_PATH="MLPipeline/models/saved_models/scaler.pkl"
+SNS_TOPIC_NAME="health-alerts"
+SMS_SUBSCRIPTION_NUMBER="+917702062828"
+EXPO_ACCESS_TOKEN=""
+LAYER_NAME="health-ml-deps"
+LAYER_DIR="layer_build"
+LAYER_ZIP="layer.zip"
 
 # Get AWS Account ID
 ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
@@ -36,6 +52,22 @@ aws dynamodb create-table \
 echo "⏳ Waiting for table to be ready..."
 aws dynamodb wait table-exists --table-name $TABLE_NAME --region $REGION
 
+echo "📊 Creating push token table..."
+aws dynamodb create-table \
+    --table-name $PUSH_TOKEN_TABLE \
+    --attribute-definitions \
+        AttributeName=userId,AttributeType=S \
+        AttributeName=deviceId,AttributeType=S \
+    --key-schema \
+        AttributeName=userId,KeyType=HASH \
+        AttributeName=deviceId,KeyType=RANGE \
+    --billing-mode PAY_PER_REQUEST \
+    --region $REGION \
+    2>/dev/null || echo "Push token table already exists"
+
+echo "⏳ Waiting for push token table to be ready..."
+aws dynamodb wait table-exists --table-name $PUSH_TOKEN_TABLE --region $REGION
+
 # Step 2: Create IAM Role
 echo "🔐 Creating IAM role..."
 aws iam create-role \
@@ -52,6 +84,14 @@ aws iam attach-role-policy \
     --role-name $ROLE_NAME \
     --policy-arn arn:aws:iam::aws:policy/AmazonDynamoDBFullAccess
 
+aws iam attach-role-policy \
+    --role-name $ROLE_NAME \
+    --policy-arn arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess
+
+aws iam attach-role-policy \
+    --role-name $ROLE_NAME \
+    --policy-arn arn:aws:iam::aws:policy/AmazonSNSFullAccess
+
 # Wait for role to propagate
 echo "⏳ Waiting for IAM role to propagate..."
 sleep 10
@@ -59,9 +99,41 @@ sleep 10
 # Step 3: Package Lambda function
 echo "📦 Packaging Lambda function..."
 rm -f function.zip
+rm -f inference.zip
+rm -f notify.zip
+rm -rf package
 pip install -r requirements.txt -t ./package
 cd package && zip -r ../function.zip . && cd ..
 zip -g function.zip lambda_function.py
+cp function.zip inference.zip
+zip -g inference.zip lambda_inference_sklearn.py
+cp function.zip notify.zip
+zip -g notify.zip sns_to_expo.py
+
+# Step 3.2: Build Lambda layer for heavy ML deps (numpy/scipy/sklearn)
+echo "🧱 Building Lambda layer for ML dependencies..."
+rm -rf "$LAYER_DIR" "$LAYER_ZIP"
+mkdir -p "$LAYER_DIR/python"
+
+docker run --rm \
+    -v "$PWD/$LAYER_DIR":/opt \
+    -v "$PWD":/var/task \
+    public.ecr.aws/sam/build-python3.9 \
+    /bin/sh -c "pip install --no-cache-dir -r /var/task/requirements.txt -t /opt/python"
+
+cd "$LAYER_DIR" && zip -r "../$LAYER_ZIP" python && cd ..
+
+# Step 3.1: Upload model artifacts to S3
+echo "🧠 Uploading model artifacts to S3..."
+if [[ -f "$MODEL_LOCAL_PATH" && -f "$SCALER_LOCAL_PATH" ]]; then
+    aws s3 cp "$MODEL_LOCAL_PATH" "s3://$MODEL_BUCKET/$MODEL_KEY" --region "$REGION"
+    aws s3 cp "$SCALER_LOCAL_PATH" "s3://$MODEL_BUCKET/$SCALER_KEY" --region "$REGION"
+else
+    echo "⚠️  Model artifacts not found. Expected:"
+    echo "   $MODEL_LOCAL_PATH"
+    echo "   $SCALER_LOCAL_PATH"
+    echo "   Skipping S3 upload."
+fi
 
 # Step 4: Create or Update Lambda function
 ROLE_ARN="arn:aws:iam::${ACCOUNT_ID}:role/${ROLE_NAME}"
@@ -81,6 +153,55 @@ aws lambda create-function \
 aws lambda update-function-code \
     --function-name $FUNCTION_NAME \
     --zip-file fileb://function.zip \
+    --region $REGION
+
+echo "☁️  Deploying Anomaly Inference Lambda function..."
+aws lambda create-function \
+    --function-name $INFERENCE_FUNCTION_NAME \
+    --runtime $RUNTIME \
+    --role $ROLE_ARN \
+    --handler $INFERENCE_HANDLER \
+    --zip-file fileb://inference.zip \
+    --timeout 30 \
+    --memory-size 1024 \
+    --environment Variables={MODEL_BUCKET=$MODEL_BUCKET,MODEL_KEY=$MODEL_KEY,SCALER_KEY=$SCALER_KEY} \
+    --region $REGION \
+    2>/dev/null || \
+aws lambda update-function-code \
+    --function-name $INFERENCE_FUNCTION_NAME \
+    --zip-file fileb://inference.zip \
+    --region $REGION
+
+echo "☁️  Publishing ML dependency layer..."
+LAYER_VERSION_ARN=$(aws lambda publish-layer-version \
+    --layer-name $LAYER_NAME \
+    --zip-file fileb://$LAYER_ZIP \
+    --compatible-runtimes $RUNTIME \
+    --region $REGION \
+    --query 'LayerVersionArn' \
+    --output text)
+
+echo "🔗 Attaching ML layer to inference Lambda..."
+aws lambda update-function-configuration \
+    --function-name $INFERENCE_FUNCTION_NAME \
+    --layers "$LAYER_VERSION_ARN" \
+    --region $REGION
+
+echo "☁️  Deploying SNS to Expo Lambda function..."
+aws lambda create-function \
+    --function-name $NOTIFY_FUNCTION_NAME \
+    --runtime $RUNTIME \
+    --role $ROLE_ARN \
+    --handler $NOTIFY_HANDLER \
+    --zip-file fileb://notify.zip \
+    --timeout 30 \
+    --memory-size 256 \
+    --environment Variables={PUSH_TOKEN_TABLE=$PUSH_TOKEN_TABLE,EXPO_ACCESS_TOKEN=$EXPO_ACCESS_TOKEN} \
+    --region $REGION \
+    2>/dev/null || \
+aws lambda update-function-code \
+    --function-name $NOTIFY_FUNCTION_NAME \
+    --zip-file fileb://notify.zip \
     --region $REGION
 
 # Step 5: Create API Gateway
@@ -139,6 +260,7 @@ aws apigateway put-method \
     --resource-id $INGEST_ID \
     --http-method POST \
     --authorization-type NONE \
+    --api-key-required \
     --region $REGION \
     2>/dev/null || echo "Method already exists"
 
@@ -153,10 +275,170 @@ aws apigateway put-integration \
     --region $REGION \
     2>/dev/null || echo "Integration already exists"
 
+# Create sync resource
+SYNC_ID=$(aws apigateway create-resource \
+    --rest-api-id $API_ID \
+    --parent-id $RESOURCE_ID \
+    --path-part sync \
+    --region $REGION \
+    --query 'id' \
+    --output text 2>/dev/null) || \
+SYNC_ID=$(aws apigateway get-resources \
+    --rest-api-id $API_ID \
+    --query "items[?path=='/health-data/sync'].id" \
+    --output text \
+    --region $REGION)
+
+# Create POST method for sync
+aws apigateway put-method \
+    --rest-api-id $API_ID \
+    --resource-id $SYNC_ID \
+    --http-method POST \
+    --authorization-type NONE \
+    --api-key-required \
+    --region $REGION \
+    2>/dev/null || echo "Sync method already exists"
+
+# Set up Lambda integration for sync
+aws apigateway put-integration \
+    --rest-api-id $API_ID \
+    --resource-id $SYNC_ID \
+    --http-method POST \
+    --type AWS_PROXY \
+    --integration-http-method POST \
+    --uri arn:aws:apigateway:$REGION:lambda:path/2015-03-31/functions/arn:aws:lambda:$REGION:$ACCOUNT_ID:function:$FUNCTION_NAME/invocations \
+    --region $REGION \
+    2>/dev/null || echo "Sync integration already exists"
+
+# Create notifications resource
+NOTIFY_PARENT_ID=$(aws apigateway create-resource \
+    --rest-api-id $API_ID \
+    --parent-id $ROOT_ID \
+    --path-part notifications \
+    --region $REGION \
+    --query 'id' \
+    --output text 2>/dev/null) || \
+NOTIFY_PARENT_ID=$(aws apigateway get-resources \
+    --rest-api-id $API_ID \
+    --query "items[?path=='/notifications'].id" \
+    --output text \
+    --region $REGION)
+
+REGISTER_ID=$(aws apigateway create-resource \
+    --rest-api-id $API_ID \
+    --parent-id $NOTIFY_PARENT_ID \
+    --path-part register \
+    --region $REGION \
+    --query 'id' \
+    --output text 2>/dev/null) || \
+REGISTER_ID=$(aws apigateway get-resources \
+    --rest-api-id $API_ID \
+    --query "items[?path=='/notifications/register'].id" \
+    --output text \
+    --region $REGION)
+
+aws apigateway put-method \
+    --rest-api-id $API_ID \
+    --resource-id $REGISTER_ID \
+    --http-method POST \
+    --authorization-type NONE \
+    --api-key-required \
+    --region $REGION \
+    2>/dev/null || echo "Notification register method already exists"
+
+aws apigateway put-integration \
+    --rest-api-id $API_ID \
+    --resource-id $REGISTER_ID \
+    --http-method POST \
+    --type AWS_PROXY \
+    --integration-http-method POST \
+    --uri arn:aws:apigateway:$REGION:lambda:path/2015-03-31/functions/arn:aws:lambda:$REGION:$ACCOUNT_ID:function:$FUNCTION_NAME/invocations \
+    --region $REGION \
+    2>/dev/null || echo "Notification register integration already exists"
+
 # Deploy API
 aws apigateway create-deployment \
     --rest-api-id $API_ID \
     --stage-name prod \
+    --region $REGION
+
+# Create SNS topic
+echo "📣 Creating SNS topic..."
+SNS_TOPIC_ARN=$(aws sns create-topic \
+    --name $SNS_TOPIC_NAME \
+    --region $REGION \
+    --query 'TopicArn' \
+    --output text)
+
+# Allow SNS to invoke notification Lambda
+aws lambda add-permission \
+    --function-name $NOTIFY_FUNCTION_NAME \
+    --statement-id sns-invoke \
+    --action lambda:InvokeFunction \
+    --principal sns.amazonaws.com \
+    --source-arn "$SNS_TOPIC_ARN" \
+    --region $REGION \
+    2>/dev/null || echo "SNS invoke permission already exists"
+
+# Subscribe Lambda to SNS topic
+aws sns subscribe \
+    --topic-arn "$SNS_TOPIC_ARN" \
+    --protocol lambda \
+    --notification-endpoint "arn:aws:lambda:$REGION:$ACCOUNT_ID:function:$NOTIFY_FUNCTION_NAME" \
+    --region "$REGION" \
+    2>/dev/null || echo "SNS Lambda subscription already exists"
+
+# Create SNS SMS subscription
+if [[ -n "$SMS_SUBSCRIPTION_NUMBER" ]]; then
+    echo "📲 Creating SNS SMS subscription for $SMS_SUBSCRIPTION_NUMBER..."
+    aws sns subscribe \
+        --topic-arn "$SNS_TOPIC_ARN" \
+        --protocol sms \
+        --notification-endpoint "$SMS_SUBSCRIPTION_NUMBER" \
+        --region "$REGION" \
+        2>/dev/null || echo "SMS subscription already exists or requires SMS sandbox approval"
+fi
+
+# Create API key and usage plan
+echo "🔑 Creating API key and usage plan..."
+API_KEY_ID=$(aws apigateway create-api-key \
+    --name HealthMonitorApiKey \
+    --enabled \
+    --query 'id' \
+    --output text 2>/dev/null) || \
+API_KEY_ID=$(aws apigateway get-api-keys \
+    --query "items[?name=='HealthMonitorApiKey'].id" \
+    --output text \
+    --region $REGION)
+
+API_KEY_VALUE=$(aws apigateway get-api-key \
+    --api-key $API_KEY_ID \
+    --include-value \
+    --query 'value' \
+    --output text \
+    --region $REGION)
+
+USAGE_PLAN_ID=$(aws apigateway create-usage-plan \
+    --name HealthMonitorUsagePlan \
+    --api-stages apiId=$API_ID,stage=prod \
+    --query 'id' \
+    --output text 2>/dev/null) || \
+USAGE_PLAN_ID=$(aws apigateway get-usage-plans \
+    --query "items[?name=='HealthMonitorUsagePlan'].id" \
+    --output text \
+    --region $REGION)
+
+aws apigateway create-usage-plan-key \
+    --usage-plan-id $USAGE_PLAN_ID \
+    --key-id $API_KEY_ID \
+    --key-type API_KEY \
+    --region $REGION \
+    2>/dev/null || echo "Usage plan key already exists"
+
+# Update Lambda env with API key, SNS topic, and cloud inference function
+aws lambda update-function-configuration \
+    --function-name $FUNCTION_NAME \
+    --environment Variables={TABLE_NAME=$TABLE_NAME,PUSH_TOKEN_TABLE=$PUSH_TOKEN_TABLE,REGION=$REGION,API_KEY=$API_KEY_VALUE,SNS_TOPIC_ARN=$SNS_TOPIC_ARN,CLOUD_INFERENCE_FUNCTION=$INFERENCE_FUNCTION_NAME} \
     --region $REGION
 
 # Add permission for API Gateway to invoke Lambda
@@ -171,13 +453,22 @@ aws lambda add-permission \
 
 # Step 6: Output API endpoint
 API_ENDPOINT="https://${API_ID}.execute-api.${REGION}.amazonaws.com/prod/health-data/ingest"
+SYNC_ENDPOINT="https://${API_ID}.execute-api.${REGION}.amazonaws.com/prod/health-data/sync"
+REGISTER_ENDPOINT="https://${API_ID}.execute-api.${REGION}.amazonaws.com/prod/notifications/register"
 
 echo ""
 echo "✅ Deployment Complete!"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "📍 API Endpoint: $API_ENDPOINT"
+echo "📍 Sync Endpoint: $SYNC_ENDPOINT"
+echo "📍 Register Push Token: $REGISTER_ENDPOINT"
 echo "🔑 DynamoDB Table: $TABLE_NAME"
+echo "🔑 Push Token Table: $PUSH_TOKEN_TABLE"
 echo "⚡ Lambda Function: $FUNCTION_NAME"
+echo "🧠 Inference Lambda: $INFERENCE_FUNCTION_NAME"
+echo "📲 Notify Lambda: $NOTIFY_FUNCTION_NAME"
+echo "📣 SNS Topic: $SNS_TOPIC_ARN"
+echo "🔐 API Key: $API_KEY_VALUE"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
 echo "🔧 Next Steps:"
@@ -187,9 +478,9 @@ echo ""
 echo "2. Test the endpoint:"
 echo "   curl -X POST $API_ENDPOINT \\"
 echo "     -H 'Content-Type: application/json' \\"
-echo "     -H 'X-API-Key: your-api-key' \\"
+echo "     -H 'X-API-Key: $API_KEY_VALUE' \\\" 
 echo "     -d @test-payload.json"
 echo ""
 
 # Cleanup
-rm -rf package function.zip
+rm -rf package function.zip inference.zip notify.zip "$LAYER_DIR" "$LAYER_ZIP"

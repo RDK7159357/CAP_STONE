@@ -1,0 +1,431 @@
+{
+  "timestamp": "2026-01-24 13:56:57",
+  "test_suites": {
+    "dependencies": {
+      "success": true,
+      "installed": [
+        "numpy",
+        "tensorflow",
+        "joblib",
+        "sklearn"
+      ],
+      "missing": [],
+      "duration_seconds": 0.1
+    },
+    "tflite_models": {
+      "success": true,
+      "stdout": "Testing activity classifier: models/tflite/activity_classifier.tflite\nTesting anomaly detector: models/tflite/anomaly_lstm.tflite\n\n================================================================================\nTEST RESULTS\n================================================================================\n{\n  \"timestamp\": \"2026-01-24 13:57:05\",\n  \"models\": {\n    \"activity_classifier\": {\n      \"model_path\": \"models/tflite/activity_classifier.tflite\",\n      \"input_shape\": [\n        1,\n        4\n      ],\n      \"output_shape\": [\n        1,\n        6\n      ],\n      \"tests\": [\n        {\n          \"name\": \"normal_resting\",\n          \"input\": [\n            70.0,\n            50.0,\n            20.0,\n            0.10000000149011612\n          ],\n          \"top_class\": 4,\n          \"top_score\": 0.9978410005569458,\n          \"probabilities\": [\n            0.0021586862858384848,\n            1.3725880876336305e-07,\n            1.970344527535417e-07,\n            4.51011554492009e-11,\n            0.9978410005569458,\n            1.5175033037194553e-30\n          ],\n          \"valid_probability\": true,\n          \"inference_time_ms\": 0.027833000785904005\n        },\n        {\n          \"name\": \"light_activity\",\n          \"input\": [\n            90.0,\n            150.0,\n            40.0,\n            0.30000001192092896\n          ],\n          \"top_class\": 2,\n          \"top_score\": 0.9831364750862122,\n          \"probabilities\": [\n            1.894668955060297e-08,\n            0.0008301656343974173,\n            0.9831364750862122,\n            9.349693328580821e-13,\n            0.016033297404646873,\n            4.0817371119994954e-24\n          ],\n          \"valid_probability\": true,\n          \"inference_time_ms\": 0.004209001417621039\n        },\n        {\n          \"name\": \"moderate_exercise\",\n          \"input\": [\n            120.0,\n            300.0,\n            80.0,\n            0.6000000238418579\n          ],\n          \"top_class\": 2,\n          \"top_score\": 0.9999933242797852,\n          \"probabilities\": [\n            1.3450820521960193e-14,\n            6.662759915343486e-06,\n            0.9999933242797852,\n            2.320088331303979e-19,\n            2.7957363091246634e-09,\n            4.008681492427883e-24\n          ],\n          \"valid_probability\": true,\n          \"inference_time_ms\": 0.002583999958005734\n        },\n        {\n          \"name\": \"intense_exercise\",\n          \"input\": [\n            160.0,\n            500.0,\n            150.0,\n            1.2000000476837158\n          ],\n          \"top_class\": 2,\n          \"top_score\": 1.0,\n          \"probabilities\": [\n            3.077773638333435e-23,\n            1.0447067516627939e-10,\n            1.0,\n            1.4208932387740738e-27,\n            5.994712630349964e-16,\n            7.504821168101674e-29\n          ],\n          \"valid_probability\": true,\n          \"inference_time_ms\": 0.0019579983927542344\n        },\n        {\n          \"name\": \"zero_values\",\n          \"input\": [\n            0.0,\n            0.0,\n            0.0,\n            0.0\n          ],\n          \"top_class\": 0,\n          \"top_score\": 0.2864742577075958,\n          \"probabilities\": [\n            0.2864742577075958,\n            0.1822194904088974,\n            0.18445998430252075,\n            0.11878877133131027,\n            0.11217258870601654,\n            0.11588490754365921\n          ],\n          \"valid_probability\": true,\n          \"inference_time_ms\": 0.001999998858082108\n        },\n        {\n          \"name\": \"extreme_values\",\n          \"input\": [\n            200.0,\n            1000.0,\n            300.0,\n            5.0\n          ],\n          \"top_class\": 2,\n          \"top_score\": 1.0,\n          \"probabilities\": [\n            4.796883985161556e-38,\n            2.2964386689044167e-16,\n            1.0,\n            7.004228944344508e-38,\n            2.4102866552311274e-30,\n            2.5578678773285157e-24\n          ],\n          \"valid_probability\": true,\n          \"inference_time_ms\": 0.0018339997041039169\n        }\n      ],\n      \"labels\": {\n        \"labels\": [\n          \"sleep\",\n          \"rest\",\n          \"walk\",\n          \"run\",\n          \"exercise\",\n          \"other\"\n        ]\n      }\n    },\n    \"anomaly_detector\": {\n      \"model_path\": \"models/tflite/anomaly_lstm.tflite\",\n      \"input_shape\": [\n        1,\n        10,\n        4\n      ],\n      \"output_shape\": [\n        1,\n        10,\n        4\n      ],\n      \"sequence_length\": 10,\n      \"tests\": [\n        {\n          \"scenario\": \"normal\",\n          \"mse\": 4.5893988609313965,\n          \"mae\": 1.7289940118789673,\n          \"feature_errors\": {\n            \"heart_rate\": 8.712121963500977,\n            \"steps\": 4.328598499298096,\n            \"calories\": 4.199212074279785,\n            \"distance\": 1.1176636219024658\n          },\n          \"inference_time_ms\": 0.01779100057319738,\n          \"input_sample\": [\n            [\n              77.43773651123047,\n              126.38194274902344,\n              28.521100997924805,\n              0.47133180499076843\n            ],\n            [\n              66.68013000488281,\n              123.33375549316406,\n              24.552562713623047,\n              0.2674868106842041\n            ],\n            [\n              81.00360870361328,\n              101.98091888427734,\n              39.780330657958984,\n              0.2590205669403076\n            ]\n          ]\n        },\n        {\n          \"scenario\": \"bradycardia\",\n          \"mse\": 2.1125590801239014,\n          \"mae\": 1.0950591564178467,\n          \"feature_errors\": {\n            \"heart_rate\": 3.528975009918213,\n            \"steps\": 1.3554518222808838,\n            \"calories\": 3.233290195465088,\n            \"distance\": 0.3325195014476776\n          },\n          \"inference_time_ms\": 0.005999998393235728,\n          \"input_sample\": [\n            [\n              46.52358627319336,\n              67.58795928955078,\n              14.075688362121582,\n              0.2070823758840561\n            ],\n            [\n              39.800079345703125,\n              65.55583953857422,\n              11.595352172851562,\n              0.07967925071716309\n            ],\n            [\n              48.752254486083984,\n              51.320613861083984,\n              21.112707138061523,\n              0.07438786327838898\n            ]\n          ]\n        },\n        {\n          \"scenario\": \"tachycardia\",\n          \"mse\": 66.62786102294922,\n          \"mae\": 6.446302890777588,\n          \"feature_errors\": {\n            \"heart_rate\": 94.22899627685547,\n            \"steps\": 79.00254821777344,\n            \"calories\": 91.81239318847656,\n            \"distance\": 1.4674896001815796\n          },\n          \"inference_time_ms\": 0.004917001206194982,\n          \"input_sample\": [\n            [\n              143.0471649169922,\n              101.98494720458984,\n              23.521100997924805,\n              0.32849887013435364\n            ],\n            [\n              129.60015869140625,\n              99.4448013305664,\n              19.552562713623047,\n              0.1756151020526886\n            ],\n            [\n              147.5045166015625,\n              81.65076446533203,\n              34.780330657958984,\n              0.16926543414592743\n            ]\n          ]\n        },\n        {\n          \"scenario\": \"exercise\",\n          \"mse\": 707.123046875,\n          \"mae\": 20.40960121154785,\n          \"feature_errors\": {\n            \"heart_rate\": 1400.2666015625,\n            \"steps\": 89.07730865478516,\n            \"calories\": 1327.0841064453125,\n            \"distance\": 12.064352989196777\n          },\n          \"inference_time_ms\": 0.004500001523410901,\n          \"input_sample\": [\n            [\n              133.65660095214844,\n              470.3518371582031,\n              114.45413208007812,\n              2.356658935546875\n            ],\n            [\n              117.52018737792969,\n              462.2233581542969,\n              99.57211303710938,\n              1.337433934211731\n            ],\n            [\n              139.0054168701172,\n              405.282470703125,\n              156.67623901367188,\n              1.2951029539108276\n            ]\n          ]\n        },\n        {\n          \"scenario\": \"zero_values\",\n          \"mse\": 0.0718461126089096,\n          \"mae\": 0.2263113260269165,\n          \"feature_errors\": {\n            \"heart_rate\": 0.1361260563135147,\n            \"steps\": 0.1311059594154358,\n            \"calories\": 0.017977332696318626,\n            \"distance\": 0.0021751215681433678\n          },\n          \"inference_time_ms\": 0.004666999302571639,\n          \"input_sample\": [\n            [\n              0.0,\n              0.0,\n              0.0,\n              0.0\n            ],\n            [\n              0.0,\n              0.0,\n              0.0,\n              0.0\n            ],\n            [\n              0.0,\n              0.0,\n              0.0,\n              0.0\n            ]\n          ]\n        },\n        {\n          \"scenario\": \"random\",\n          \"mse\": 1646.5989990234375,\n          \"mae\": 32.50590133666992,\n          \"feature_errors\": {\n            \"heart_rate\": 3199.17529296875,\n            \"steps\": 1460.2974853515625,\n            \"calories\": 1839.6689453125,\n            \"distance\": 87.25433349609375\n          },\n          \"inference_time_ms\": 0.004749999789055437,\n          \"input_sample\": [\n            [\n              148.35385131835938,\n              370.79803466796875,\n              151.6175537109375,\n              3.7238106727600098\n            ],\n            [\n              101.44297790527344,\n              926.7650146484375,\n              70.90519714355469,\n              4.837548732757568\n            ],\n            [\n              160.20370483398438,\n              643.8651123046875,\n              194.1396026611328,\n              1.629126787185669\n            ]\n          ]\n        }\n      ],\n      \"signature\": {\n        \"input\": {\n          \"shape\": [\n            1,\n            10,\n            4\n          ],\n          \"dtype\": \"float32\"\n        },\n        \"output\": {\n          \"shape\": [\n            1,\n            10,\n            4\n          ],\n          \"dtype\": \"float32\"\n        },\n        \"note\": \"Reconstruction error should be computed on-device; higher error => anomaly\"\n      }\n    }\n  }\n}\n\n================================================================================\nSUMMARY\n================================================================================\n\u2705 Activity Classifier: 6/6 tests passed\n\u2705 Anomaly Detector: 6 scenarios tested\n",
+      "stderr": "INFO: Created TensorFlow Lite XNNPACK delegate for CPU.\n",
+      "returncode": 0,
+      "duration_seconds": 4.875655889511108,
+      "parsed_output": {
+        "timestamp": "2026-01-24 13:57:05",
+        "models": {
+          "activity_classifier": {
+            "model_path": "models/tflite/activity_classifier.tflite",
+            "input_shape": [
+              1,
+              4
+            ],
+            "output_shape": [
+              1,
+              6
+            ],
+            "tests": [
+              {
+                "name": "normal_resting",
+                "input": [
+                  70.0,
+                  50.0,
+                  20.0,
+                  0.10000000149011612
+                ],
+                "top_class": 4,
+                "top_score": 0.9978410005569458,
+                "probabilities": [
+                  0.0021586862858384848,
+                  1.3725880876336305e-07,
+                  1.970344527535417e-07,
+                  4.51011554492009e-11,
+                  0.9978410005569458,
+                  1.5175033037194553e-30
+                ],
+                "valid_probability": true,
+                "inference_time_ms": 0.027833000785904005
+              },
+              {
+                "name": "light_activity",
+                "input": [
+                  90.0,
+                  150.0,
+                  40.0,
+                  0.30000001192092896
+                ],
+                "top_class": 2,
+                "top_score": 0.9831364750862122,
+                "probabilities": [
+                  1.894668955060297e-08,
+                  0.0008301656343974173,
+                  0.9831364750862122,
+                  9.349693328580821e-13,
+                  0.016033297404646873,
+                  4.0817371119994954e-24
+                ],
+                "valid_probability": true,
+                "inference_time_ms": 0.004209001417621039
+              },
+              {
+                "name": "moderate_exercise",
+                "input": [
+                  120.0,
+                  300.0,
+                  80.0,
+                  0.6000000238418579
+                ],
+                "top_class": 2,
+                "top_score": 0.9999933242797852,
+                "probabilities": [
+                  1.3450820521960193e-14,
+                  6.662759915343486e-06,
+                  0.9999933242797852,
+                  2.320088331303979e-19,
+                  2.7957363091246634e-09,
+                  4.008681492427883e-24
+                ],
+                "valid_probability": true,
+                "inference_time_ms": 0.002583999958005734
+              },
+              {
+                "name": "intense_exercise",
+                "input": [
+                  160.0,
+                  500.0,
+                  150.0,
+                  1.2000000476837158
+                ],
+                "top_class": 2,
+                "top_score": 1.0,
+                "probabilities": [
+                  3.077773638333435e-23,
+                  1.0447067516627939e-10,
+                  1.0,
+                  1.4208932387740738e-27,
+                  5.994712630349964e-16,
+                  7.504821168101674e-29
+                ],
+                "valid_probability": true,
+                "inference_time_ms": 0.0019579983927542344
+              },
+              {
+                "name": "zero_values",
+                "input": [
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "top_class": 0,
+                "top_score": 0.2864742577075958,
+                "probabilities": [
+                  0.2864742577075958,
+                  0.1822194904088974,
+                  0.18445998430252075,
+                  0.11878877133131027,
+                  0.11217258870601654,
+                  0.11588490754365921
+                ],
+                "valid_probability": true,
+                "inference_time_ms": 0.001999998858082108
+              },
+              {
+                "name": "extreme_values",
+                "input": [
+                  200.0,
+                  1000.0,
+                  300.0,
+                  5.0
+                ],
+                "top_class": 2,
+                "top_score": 1.0,
+                "probabilities": [
+                  4.796883985161556e-38,
+                  2.2964386689044167e-16,
+                  1.0,
+                  7.004228944344508e-38,
+                  2.4102866552311274e-30,
+                  2.5578678773285157e-24
+                ],
+                "valid_probability": true,
+                "inference_time_ms": 0.0018339997041039169
+              }
+            ],
+            "labels": {
+              "labels": [
+                "sleep",
+                "rest",
+                "walk",
+                "run",
+                "exercise",
+                "other"
+              ]
+            }
+          },
+          "anomaly_detector": {
+            "model_path": "models/tflite/anomaly_lstm.tflite",
+            "input_shape": [
+              1,
+              10,
+              4
+            ],
+            "output_shape": [
+              1,
+              10,
+              4
+            ],
+            "sequence_length": 10,
+            "tests": [
+              {
+                "scenario": "normal",
+                "mse": 4.5893988609313965,
+                "mae": 1.7289940118789673,
+                "feature_errors": {
+                  "heart_rate": 8.712121963500977,
+                  "steps": 4.328598499298096,
+                  "calories": 4.199212074279785,
+                  "distance": 1.1176636219024658
+                },
+                "inference_time_ms": 0.01779100057319738,
+                "input_sample": [
+                  [
+                    77.43773651123047,
+                    126.38194274902344,
+                    28.521100997924805,
+                    0.47133180499076843
+                  ],
+                  [
+                    66.68013000488281,
+                    123.33375549316406,
+                    24.552562713623047,
+                    0.2674868106842041
+                  ],
+                  [
+                    81.00360870361328,
+                    101.98091888427734,
+                    39.780330657958984,
+                    0.2590205669403076
+                  ]
+                ]
+              },
+              {
+                "scenario": "bradycardia",
+                "mse": 2.1125590801239014,
+                "mae": 1.0950591564178467,
+                "feature_errors": {
+                  "heart_rate": 3.528975009918213,
+                  "steps": 1.3554518222808838,
+                  "calories": 3.233290195465088,
+                  "distance": 0.3325195014476776
+                },
+                "inference_time_ms": 0.005999998393235728,
+                "input_sample": [
+                  [
+                    46.52358627319336,
+                    67.58795928955078,
+                    14.075688362121582,
+                    0.2070823758840561
+                  ],
+                  [
+                    39.800079345703125,
+                    65.55583953857422,
+                    11.595352172851562,
+                    0.07967925071716309
+                  ],
+                  [
+                    48.752254486083984,
+                    51.320613861083984,
+                    21.112707138061523,
+                    0.07438786327838898
+                  ]
+                ]
+              },
+              {
+                "scenario": "tachycardia",
+                "mse": 66.62786102294922,
+                "mae": 6.446302890777588,
+                "feature_errors": {
+                  "heart_rate": 94.22899627685547,
+                  "steps": 79.00254821777344,
+                  "calories": 91.81239318847656,
+                  "distance": 1.4674896001815796
+                },
+                "inference_time_ms": 0.004917001206194982,
+                "input_sample": [
+                  [
+                    143.0471649169922,
+                    101.98494720458984,
+                    23.521100997924805,
+                    0.32849887013435364
+                  ],
+                  [
+                    129.60015869140625,
+                    99.4448013305664,
+                    19.552562713623047,
+                    0.1756151020526886
+                  ],
+                  [
+                    147.5045166015625,
+                    81.65076446533203,
+                    34.780330657958984,
+                    0.16926543414592743
+                  ]
+                ]
+              },
+              {
+                "scenario": "exercise",
+                "mse": 707.123046875,
+                "mae": 20.40960121154785,
+                "feature_errors": {
+                  "heart_rate": 1400.2666015625,
+                  "steps": 89.07730865478516,
+                  "calories": 1327.0841064453125,
+                  "distance": 12.064352989196777
+                },
+                "inference_time_ms": 0.004500001523410901,
+                "input_sample": [
+                  [
+                    133.65660095214844,
+                    470.3518371582031,
+                    114.45413208007812,
+                    2.356658935546875
+                  ],
+                  [
+                    117.52018737792969,
+                    462.2233581542969,
+                    99.57211303710938,
+                    1.337433934211731
+                  ],
+                  [
+                    139.0054168701172,
+                    405.282470703125,
+                    156.67623901367188,
+                    1.2951029539108276
+                  ]
+                ]
+              },
+              {
+                "scenario": "zero_values",
+                "mse": 0.0718461126089096,
+                "mae": 0.2263113260269165,
+                "feature_errors": {
+                  "heart_rate": 0.1361260563135147,
+                  "steps": 0.1311059594154358,
+                  "calories": 0.017977332696318626,
+                  "distance": 0.0021751215681433678
+                },
+                "inference_time_ms": 0.004666999302571639,
+                "input_sample": [
+                  [
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0
+                  ],
+                  [
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0
+                  ],
+                  [
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0
+                  ]
+                ]
+              },
+              {
+                "scenario": "random",
+                "mse": 1646.5989990234375,
+                "mae": 32.50590133666992,
+                "feature_errors": {
+                  "heart_rate": 3199.17529296875,
+                  "steps": 1460.2974853515625,
+                  "calories": 1839.6689453125,
+                  "distance": 87.25433349609375
+                },
+                "inference_time_ms": 0.004749999789055437,
+                "input_sample": [
+                  [
+                    148.35385131835938,
+                    370.79803466796875,
+                    151.6175537109375,
+                    3.7238106727600098
+                  ],
+                  [
+                    101.44297790527344,
+                    926.7650146484375,
+                    70.90519714355469,
+                    4.837548732757568
+                  ],
+                  [
+                    160.20370483398438,
+                    643.8651123046875,
+                    194.1396026611328,
+                    1.629126787185669
+                  ]
+                ]
+              }
+            ],
+            "signature": {
+              "input": {
+                "shape": [
+                  1,
+                  10,
+                  4
+                ],
+                "dtype": "float32"
+              },
+              "output": {
+                "shape": [
+                  1,
+                  10,
+                  4
+                ],
+                "dtype": "float32"
+              },
+              "note": "Reconstruction error should be computed on-device; higher error => anomaly"
+            }
+          }
+        }
+      }
+    },
+    "sklearn_models": {
+      "success": true,
+      "stdout": "Testing Isolation Forest: models/saved_models/isolation_forest.pkl\nTesting scaler: models/saved_models/scaler.pkl\n\n================================================================================\nTEST RESULTS\n================================================================================\n{\n  \"timestamp\": \"2026-01-24 13:57:06\",\n  \"sklearn_models\": {\n    \"isolation_forest\": {\n      \"model_path\": \"models/saved_models/isolation_forest.pkl\",\n      \"model_type\": \"IsolationForest\",\n      \"scaler_type\": \"NoneType\",\n      \"model_params\": {\n        \"n_estimators\": 100,\n        \"contamination\": 0.1,\n        \"max_samples\": \"auto\"\n      },\n      \"tests\": [\n        {\n          \"scenario\": \"normal\",\n          \"n_samples\": 50,\n          \"n_anomalies\": 50,\n          \"n_normal\": 0,\n          \"anomaly_rate\": 1.0,\n          \"mean_score\": -0.697258203750063,\n          \"std_score\": 0.0007134385386057173,\n          \"min_score\": -0.697715453122863,\n          \"max_score\": -0.6927831427985118,\n          \"inference_time_ms\": 5.439459000626812,\n          \"sample_stats\": {\n            \"mean_hr\": 75.72968292236328,\n            \"mean_steps\": 94.24748992919922,\n            \"mean_calories\": 29.590166091918945,\n            \"mean_distance\": 0.302397221326828\n          }\n        },\n        {\n          \"scenario\": \"bradycardia\",\n          \"n_samples\": 50,\n          \"n_anomalies\": 50,\n          \"n_normal\": 0,\n          \"anomaly_rate\": 1.0,\n          \"mean_score\": -0.6974704455559965,\n          \"std_score\": 0.0007679528597243697,\n          \"min_score\": -0.6986602216509523,\n          \"max_score\": -0.6963006952351348,\n          \"inference_time_ms\": 4.9205410014110385,\n          \"sample_stats\": {\n            \"mean_hr\": 45.4560546875,\n            \"mean_steps\": 46.16499328613281,\n            \"mean_calories\": 14.743854522705078,\n            \"mean_distance\": 0.10149826854467392\n          }\n        },\n        {\n          \"scenario\": \"tachycardia\",\n          \"n_samples\": 50,\n          \"n_anomalies\": 50,\n          \"n_normal\": 0,\n          \"anomaly_rate\": 1.0,\n          \"mean_score\": -0.697564539340759,\n          \"std_score\": 0.0004269483242524452,\n          \"min_score\": -0.6986602216509523,\n          \"max_score\": -0.697243548055723,\n          \"inference_time_ms\": 4.8264580000250135,\n          \"sample_stats\": {\n            \"mean_hr\": 140.912109375,\n            \"mean_steps\": 75.20624542236328,\n            \"mean_calories\": 24.590166091918945,\n            \"mean_distance\": 0.20179791748523712\n          }\n        },\n        {\n          \"scenario\": \"extreme\",\n          \"n_samples\": 50,\n          \"n_anomalies\": 50,\n          \"n_normal\": 0,\n          \"anomaly_rate\": 1.0,\n          \"mean_score\": -0.6984225849352259,\n          \"std_score\": 1.1102230246251565e-16,\n          \"min_score\": -0.698422584935226,\n          \"max_score\": -0.698422584935226,\n          \"inference_time_ms\": 4.810792001080699,\n          \"sample_stats\": {\n            \"mean_hr\": 201.3681640625,\n            \"mean_steps\": 961.64990234375,\n            \"mean_calories\": 297.4385681152344,\n            \"mean_distance\": 5.029965400695801\n          }\n        },\n        {\n          \"scenario\": \"zero\",\n          \"n_samples\": 50,\n          \"n_anomalies\": 0,\n          \"n_normal\": 50,\n          \"anomaly_rate\": 0.0,\n          \"mean_score\": -0.4749586281118936,\n          \"std_score\": 1.1102230246251565e-16,\n          \"min_score\": -0.4749586281118937,\n          \"max_score\": -0.4749586281118937,\n          \"inference_time_ms\": 4.901874999632128,\n          \"sample_stats\": {\n            \"mean_hr\": 0.0,\n            \"mean_steps\": 0.0,\n            \"mean_calories\": 0.0,\n            \"mean_distance\": 0.0\n          }\n        },\n        {\n          \"scenario\": \"random\",\n          \"n_samples\": 50,\n          \"n_anomalies\": 50,\n          \"n_normal\": 0,\n          \"anomaly_rate\": 1.0,\n          \"mean_score\": -0.6932743114376311,\n          \"std_score\": 0.005525649957288154,\n          \"min_score\": -0.6986602216509523,\n          \"max_score\": -0.6829559064765707,\n          \"inference_time_ms\": 4.883708999841474,\n          \"sample_stats\": {\n            \"mean_hr\": 114.93257904052734,\n            \"mean_steps\": 438.2041931152344,\n            \"mean_calories\": 96.37092590332031,\n            \"mean_distance\": 1.560559868812561\n          }\n        }\n      ]\n    },\n    \"scaler\": {\n      \"scaler_path\": \"models/saved_models/scaler.pkl\",\n      \"scaler_type\": \"StandardScaler\",\n      \"n_features\": 4,\n      \"feature_names\": [\n        \"heartRate\",\n        \"steps\",\n        \"calories\",\n        \"distance\"\n      ],\n      \"mean\": [\n        75.44185249070337,\n        2999.25708,\n        156.29690564352353,\n        2399.9490951253056\n      ],\n      \"scale\": [\n        26.443815078722565,\n        2338.1689286854094,\n        90.40490632238175,\n        1870.6322752086132\n      ],\n      \"tests\": [\n        {\n          \"operation\": \"transform\",\n          \"input_shape\": [\n            10,\n            4\n          ],\n          \"output_shape\": [\n            10,\n            4\n          ],\n          \"output_mean\": -1.0060640573501587,\n          \"output_std\": 0.5331540107727051,\n          \"time_ms\": 1.0581670012470568\n        }\n      ]\n    }\n  }\n}\n\n================================================================================\nSUMMARY\n================================================================================\n\u2705 Isolation Forest: 6 scenarios tested\n\u2705 Scaler: Validated successfully\n",
+      "stderr": "/Library/Frameworks/Python.framework/Versions/3.12/lib/python3.12/site-packages/sklearn/base.py:380: InconsistentVersionWarning: Trying to unpickle estimator ExtraTreeRegressor from version 1.8.0 when using version 1.6.1. This might lead to breaking code or invalid results. Use at your own risk. For more info please refer to:\nhttps://scikit-learn.org/stable/model_persistence.html#security-maintainability-limitations\n  warnings.warn(\n/Library/Frameworks/Python.framework/Versions/3.12/lib/python3.12/site-packages/sklearn/base.py:380: InconsistentVersionWarning: Trying to unpickle estimator IsolationForest from version 1.8.0 when using version 1.6.1. This might lead to breaking code or invalid results. Use at your own risk. For more info please refer to:\nhttps://scikit-learn.org/stable/model_persistence.html#security-maintainability-limitations\n  warnings.warn(\n/Library/Frameworks/Python.framework/Versions/3.12/lib/python3.12/site-packages/sklearn/base.py:380: InconsistentVersionWarning: Trying to unpickle estimator StandardScaler from version 1.8.0 when using version 1.6.1. This might lead to breaking code or invalid results. Use at your own risk. For more info please refer to:\nhttps://scikit-learn.org/stable/model_persistence.html#security-maintainability-limitations\n  warnings.warn(\n/Library/Frameworks/Python.framework/Versions/3.12/lib/python3.12/site-packages/sklearn/utils/validation.py:2739: UserWarning: X does not have valid feature names, but StandardScaler was fitted with feature names\n  warnings.warn(\n",
+      "returncode": 0,
+      "duration_seconds": 1.4887669086456299
+    },
+    "lambda_export": {
+      "success": true,
+      "stdout": "Testing Lambda export package: models/lambda_export\n\u2713 Loaded metadata: IsolationForest\n\u2713 Loaded model: IsolationForest\nTesting batch inference (n=100)...\nSimulating Lambda handler...\n\n================================================================================\nTEST RESULTS\n================================================================================\n{\n  \"timestamp\": \"2026-01-24 13:57:08\",\n  \"lambda_export\": {\n    \"package_test\": {\n      \"export_dir\": \"models/lambda_export\",\n      \"files_present\": {\n        \"model.pkl\": true,\n        \"metadata.json\": true\n      },\n      \"tests\": [\n        {\n          \"name\": \"normal_single_metric\",\n          \"success\": true,\n          \"input\": {\n            \"heartRate\": 75.0,\n            \"steps\": 100.0,\n            \"calories\": 30.0,\n            \"distance\": 0.3\n          },\n          \"anomaly_score\": -0.5336019407118071,\n          \"prediction\": 1,\n          \"is_anomaly\": false,\n          \"threshold\": -0.5507779638278313,\n          \"inference_time_ms\": 5.881375000171829\n        },\n        {\n          \"name\": \"high_heart_rate\",\n          \"success\": true,\n          \"input\": {\n            \"heartRate\": 150.0,\n            \"steps\": 50.0,\n            \"calories\": 25.0,\n            \"distance\": 0.15\n          },\n          \"anomaly_score\": -0.6432277117089988,\n          \"prediction\": -1,\n          \"is_anomaly\": true,\n          \"threshold\": -0.5507779638278313,\n          \"inference_time_ms\": 4.99229199886031\n        },\n        {\n          \"name\": \"low_heart_rate\",\n          \"success\": true,\n          \"input\": {\n            \"heartRate\": 45.0,\n            \"steps\": 30.0,\n            \"calories\": 15.0,\n            \"distance\": 0.08\n          },\n          \"anomaly_score\": -0.6293268018115173,\n          \"prediction\": -1,\n          \"is_anomaly\": true,\n          \"threshold\": -0.5507779638278313,\n          \"inference_time_ms\": 4.9447920009697555\n        },\n        {\n          \"name\": \"high_activity\",\n          \"success\": true,\n          \"input\": {\n            \"heartRate\": 130.0,\n            \"steps\": 500.0,\n            \"calories\": 120.0,\n            \"distance\": 1.5\n          },\n          \"anomaly_score\": -0.5849402467316301,\n          \"prediction\": -1,\n          \"is_anomaly\": true,\n          \"threshold\": -0.5507779638278313,\n          \"inference_time_ms\": 4.9872919989866205\n        },\n        {\n          \"name\": \"zero_values\",\n          \"success\": true,\n          \"input\": {\n            \"heartRate\": 0.0,\n            \"steps\": 0.0,\n            \"calories\": 0.0,\n            \"distance\": 0.0\n          },\n          \"anomaly_score\": -0.6634037701527434,\n          \"prediction\": -1,\n          \"is_anomaly\": true,\n          \"threshold\": -0.5507779638278313,\n          \"inference_time_ms\": 4.961624999850756\n        },\n        {\n          \"name\": \"missing_field\",\n          \"success\": false,\n          \"error\": \"Missing required fields: ['distance']\",\n          \"input\": {\n            \"heartRate\": 75.0,\n            \"steps\": 100.0,\n            \"calories\": 30.0\n          }\n        }\n      ],\n      \"metadata\": {\n        \"type\": \"IsolationForest\",\n        \"features\": [\n          \"heartRate\",\n          \"steps\",\n          \"calories\",\n          \"distance\"\n        ],\n        \"threshold\": -0.5507779638278313,\n        \"contamination\": 0.1\n      },\n      \"model_loaded\": true,\n      \"model_type\": \"IsolationForest\",\n      \"scaler_type\": \"StandardScaler\"\n    },\n    \"batch_test\": {\n      \"batch_size\": 100,\n      \"total_time_ms\": 6.092875000831555,\n      \"avg_time_per_sample_ms\": 0.060928750008315546,\n      \"n_anomalies\": 56,\n      \"n_normal\": 44,\n      \"mean_score\": -0.5571114331160272,\n      \"std_score\": 0.025869392391337623\n    },\n    \"lambda_simulation\": {\n      \"statusCode\": 200,\n      \"body\": \"{\\\"anomalyScore\\\": -0.5336019407118071, \\\"isAnomaly\\\": false, \\\"prediction\\\": 1, \\\"threshold\\\": -0.5507779638278313}\",\n      \"timing\": {\n        \"cold_start_ms\": 13.487167001585476,\n        \"inference_ms\": 5.550208001295687,\n        \"total_ms\": 19.037375002881163\n      }\n    }\n  }\n}\n\n================================================================================\nSUMMARY\n================================================================================\n\u2705 Package Tests: 5/6 passed\n\u2705 Batch Inference: 100 samples in 6.09ms\n   Average: 0.0609ms per sample\n\u2705 Lambda Simulation: 19.04ms total\n   Cold start: 13.49ms\n   Inference: 5.55ms\n",
+      "stderr": "/Library/Frameworks/Python.framework/Versions/3.12/lib/python3.12/site-packages/sklearn/base.py:380: InconsistentVersionWarning: Trying to unpickle estimator ExtraTreeRegressor from version 1.8.0 when using version 1.6.1. This might lead to breaking code or invalid results. Use at your own risk. For more info please refer to:\nhttps://scikit-learn.org/stable/model_persistence.html#security-maintainability-limitations\n  warnings.warn(\n/Library/Frameworks/Python.framework/Versions/3.12/lib/python3.12/site-packages/sklearn/base.py:380: InconsistentVersionWarning: Trying to unpickle estimator IsolationForest from version 1.8.0 when using version 1.6.1. This might lead to breaking code or invalid results. Use at your own risk. For more info please refer to:\nhttps://scikit-learn.org/stable/model_persistence.html#security-maintainability-limitations\n  warnings.warn(\n/Library/Frameworks/Python.framework/Versions/3.12/lib/python3.12/site-packages/sklearn/base.py:380: InconsistentVersionWarning: Trying to unpickle estimator StandardScaler from version 1.8.0 when using version 1.6.1. This might lead to breaking code or invalid results. Use at your own risk. For more info please refer to:\nhttps://scikit-learn.org/stable/model_persistence.html#security-maintainability-limitations\n  warnings.warn(\n/Library/Frameworks/Python.framework/Versions/3.12/lib/python3.12/site-packages/sklearn/utils/validation.py:2739: UserWarning: X does not have valid feature names, but StandardScaler was fitted with feature names\n  warnings.warn(\n/Library/Frameworks/Python.framework/Versions/3.12/lib/python3.12/site-packages/sklearn/utils/validation.py:2739: UserWarning: X does not have valid feature names, but StandardScaler was fitted with feature names\n  warnings.warn(\n/Library/Frameworks/Python.framework/Versions/3.12/lib/python3.12/site-packages/sklearn/utils/validation.py:2739: UserWarning: X does not have valid feature names, but StandardScaler was fitted with feature names\n  warnings.warn(\n/Library/Frameworks/Python.framework/Versions/3.12/lib/python3.12/site-packages/sklearn/utils/validation.py:2739: UserWarning: X does not have valid feature names, but StandardScaler was fitted with feature names\n  warnings.warn(\n/Library/Frameworks/Python.framework/Versions/3.12/lib/python3.12/site-packages/sklearn/utils/validation.py:2739: UserWarning: X does not have valid feature names, but StandardScaler was fitted with feature names\n  warnings.warn(\n/Library/Frameworks/Python.framework/Versions/3.12/lib/python3.12/site-packages/sklearn/base.py:380: InconsistentVersionWarning: Trying to unpickle estimator ExtraTreeRegressor from version 1.8.0 when using version 1.6.1. This might lead to breaking code or invalid results. Use at your own risk. For more info please refer to:\nhttps://scikit-learn.org/stable/model_persistence.html#security-maintainability-limitations\n  warnings.warn(\n/Library/Frameworks/Python.framework/Versions/3.12/lib/python3.12/site-packages/sklearn/base.py:380: InconsistentVersionWarning: Trying to unpickle estimator IsolationForest from version 1.8.0 when using version 1.6.1. This might lead to breaking code or invalid results. Use at your own risk. For more info please refer to:\nhttps://scikit-learn.org/stable/model_persistence.html#security-maintainability-limitations\n  warnings.warn(\n/Library/Frameworks/Python.framework/Versions/3.12/lib/python3.12/site-packages/sklearn/base.py:380: InconsistentVersionWarning: Trying to unpickle estimator StandardScaler from version 1.8.0 when using version 1.6.1. This might lead to breaking code or invalid results. Use at your own risk. For more info please refer to:\nhttps://scikit-learn.org/stable/model_persistence.html#security-maintainability-limitations\n  warnings.warn(\n/Library/Frameworks/Python.framework/Versions/3.12/lib/python3.12/site-packages/sklearn/utils/validation.py:2739: UserWarning: X does not have valid feature names, but StandardScaler was fitted with feature names\n  warnings.warn(\n/Library/Frameworks/Python.framework/Versions/3.12/lib/python3.12/site-packages/sklearn/base.py:380: InconsistentVersionWarning: Trying to unpickle estimator ExtraTreeRegressor from version 1.8.0 when using version 1.6.1. This might lead to breaking code or invalid results. Use at your own risk. For more info please refer to:\nhttps://scikit-learn.org/stable/model_persistence.html#security-maintainability-limitations\n  warnings.warn(\n/Library/Frameworks/Python.framework/Versions/3.12/lib/python3.12/site-packages/sklearn/base.py:380: InconsistentVersionWarning: Trying to unpickle estimator IsolationForest from version 1.8.0 when using version 1.6.1. This might lead to breaking code or invalid results. Use at your own risk. For more info please refer to:\nhttps://scikit-learn.org/stable/model_persistence.html#security-maintainability-limitations\n  warnings.warn(\n/Library/Frameworks/Python.framework/Versions/3.12/lib/python3.12/site-packages/sklearn/base.py:380: InconsistentVersionWarning: Trying to unpickle estimator StandardScaler from version 1.8.0 when using version 1.6.1. This might lead to breaking code or invalid results. Use at your own risk. For more info please refer to:\nhttps://scikit-learn.org/stable/model_persistence.html#security-maintainability-limitations\n  warnings.warn(\n/Library/Frameworks/Python.framework/Versions/3.12/lib/python3.12/site-packages/sklearn/utils/validation.py:2739: UserWarning: X does not have valid feature names, but StandardScaler was fitted with feature names\n  warnings.warn(\n",
+      "returncode": 0,
+      "duration_seconds": 1.454827070236206
+    },
+    "integration": {
+      "success": true,
+      "stdout": "================================================================================\nINTEGRATION TESTING\n================================================================================\n\n[1] Testing WearOS Integration...\n  \u2713 Found activity_classifier\n  \u2713 Found anomaly_detector\n\n  Simulating WearOS data flow...\n\n[2] Testing React Native Integration...\n\n  Simulating React Native -> Lambda -> Response flow...\n  Simulating batch sync...\n  Testing error handling...\n\n[3] Testing End-to-End Workflow...\n\n  Simulating end-to-end workflow...\n\n================================================================================\nINTEGRATION TEST RESULTS\n================================================================================\n{\n  \"timestamp\": \"2026-01-24 13:57:13\",\n  \"integration_tests\": {\n    \"wearos\": {\n      \"platform\": \"WearOS\",\n      \"models_tested\": [\n        \"activity_classifier\",\n        \"anomaly_detector\"\n      ],\n      \"integration_tests\": [\n        {\n          \"test\": \"wearos_activity_classification\",\n          \"success\": true,\n          \"latency_ms\": 0.03004199970746413,\n          \"meets_realtime_requirement\": true,\n          \"predicted_class\": 2,\n          \"confidence\": 0.9945157170295715\n        },\n        {\n          \"test\": \"wearos_anomaly_detection\",\n          \"success\": true,\n          \"latency_ms\": 0.016292000509565696,\n          \"meets_realtime_requirement\": true,\n          \"reconstruction_error\": 4.5893988609313965\n        }\n      ]\n    },\n    \"react_native\": {\n      \"platform\": \"React Native\",\n      \"backend\": \"AWS Lambda\",\n      \"integration_tests\": [\n        {\n          \"test\": \"rn_single_metric_submission\",\n          \"success\": true,\n          \"latency_ms\": 6.028666999554844,\n          \"meets_api_requirement\": true,\n          \"input\": {\n            \"heartRate\": 75.0,\n            \"steps\": 100.0,\n            \"calories\": 30.0,\n            \"distance\": 0.3,\n            \"timestamp\": 1769243234,\n            \"userId\": \"test_user_001\"\n          },\n          \"output\": {\n            \"anomalyScore\": -0.5336019407118071,\n            \"isAnomaly\": false,\n            \"prediction\": 1,\n            \"threshold\": -0.5507779638278313,\n            \"timestamp\": 1769243234\n          }\n        },\n        {\n          \"test\": \"rn_batch_sync\",\n          \"success\": true,\n          \"batch_size\": 10,\n          \"total_latency_ms\": 4.933291000270401,\n          \"avg_latency_per_item_ms\": 0.4933291000270401,\n          \"meets_api_requirement\": true,\n          \"results\": [\n            {\n              \"index\": 0,\n              \"anomalyScore\": -0.5472589717880909,\n              \"isAnomaly\": false\n            },\n            {\n              \"index\": 1,\n              \"anomalyScore\": -0.5360928076123822,\n              \"isAnomaly\": false\n            },\n            {\n              \"index\": 2,\n              \"anomalyScore\": -0.5308864180558568,\n              \"isAnomaly\": false\n            },\n            {\n              \"index\": 3,\n              \"anomalyScore\": -0.5277904849085857,\n              \"isAnomaly\": false\n            },\n            {\n              \"index\": 4,\n              \"anomalyScore\": -0.5243009146509077,\n              \"isAnomaly\": false\n            },\n            {\n              \"index\": 5,\n              \"anomalyScore\": -0.5254213024514163,\n              \"isAnomaly\": false\n            },\n            {\n              \"index\": 6,\n              \"anomalyScore\": -0.5326978970569028,\n              \"isAnomaly\": false\n            },\n            {\n              \"index\": 7,\n              \"anomalyScore\": -0.5383256769250544,\n              \"isAnomaly\": false\n            },\n            {\n              \"index\": 8,\n              \"anomalyScore\": -0.542450202002985,\n              \"isAnomaly\": false\n            },\n            {\n              \"index\": 9,\n              \"anomalyScore\": -0.5414356338231557,\n              \"isAnomaly\": false\n            }\n          ]\n        },\n        {\n          \"test\": \"rn_error_handling_missing_fields\",\n          \"success\": true,\n          \"error_caught\": \"'calories'\",\n          \"error_type\": \"KeyError\"\n        }\n      ]\n    },\n    \"end_to_end\": {\n      \"workflow\": \"WearOS -> Lambda -> React Native Dashboard\",\n      \"steps\": [\n        {\n          \"step\": 1,\n          \"component\": \"WearOS\",\n          \"action\": \"Sensor data collected\",\n          \"data\": {\n            \"heartRate\": 85.0,\n            \"steps\": 150.0,\n            \"calories\": 45.0,\n            \"distance\": 0.35,\n            \"timestamp\": 1769243234,\n            \"source\": \"WearOS\"\n          }\n        },\n        {\n          \"step\": 2,\n          \"component\": \"WearOS -> Cloud\",\n          \"action\": \"Data synced to backend\",\n          \"sync_method\": \"HTTP POST to API Gateway\"\n        },\n        {\n          \"step\": 3,\n          \"component\": \"AWS Lambda\",\n          \"action\": \"Anomaly detection inference\",\n          \"input\": {\n            \"heartRate\": 85.0,\n            \"steps\": 150.0,\n            \"calories\": 45.0,\n            \"distance\": 0.35,\n            \"timestamp\": 1769243234,\n            \"source\": \"WearOS\"\n          }\n        },\n        {\n          \"step\": 4,\n          \"component\": \"React Native\",\n          \"action\": \"Dashboard displays health metrics\",\n          \"display_data\": {\n            \"heartRate\": 85.0,\n            \"isAnomaly\": false,\n            \"timestamp\": 1769243234\n          }\n        }\n      ],\n      \"workflow_complete\": true\n    }\n  }\n}\n\n================================================================================\nSUMMARY\n================================================================================\n\u2705 WearOS: 2 models, 2 integration tests\n   \u2713 wearos_activity_classification: 0.03ms (real-time \u2713)\n   \u2713 wearos_anomaly_detection: 0.02ms (real-time \u2713)\n\u2705 React Native: 3 integration tests\n   \u2713 rn_single_metric_submission\n   \u2713 rn_batch_sync\n   \u2713 rn_error_handling_missing_fields\n\u2705 End-to-End: 4 steps completed\n",
+      "stderr": "INFO: Created TensorFlow Lite XNNPACK delegate for CPU.\n/Library/Frameworks/Python.framework/Versions/3.12/lib/python3.12/site-packages/sklearn/base.py:380: InconsistentVersionWarning: Trying to unpickle estimator ExtraTreeRegressor from version 1.8.0 when using version 1.6.1. This might lead to breaking code or invalid results. Use at your own risk. For more info please refer to:\nhttps://scikit-learn.org/stable/model_persistence.html#security-maintainability-limitations\n  warnings.warn(\n/Library/Frameworks/Python.framework/Versions/3.12/lib/python3.12/site-packages/sklearn/base.py:380: InconsistentVersionWarning: Trying to unpickle estimator IsolationForest from version 1.8.0 when using version 1.6.1. This might lead to breaking code or invalid results. Use at your own risk. For more info please refer to:\nhttps://scikit-learn.org/stable/model_persistence.html#security-maintainability-limitations\n  warnings.warn(\n/Library/Frameworks/Python.framework/Versions/3.12/lib/python3.12/site-packages/sklearn/base.py:380: InconsistentVersionWarning: Trying to unpickle estimator StandardScaler from version 1.8.0 when using version 1.6.1. This might lead to breaking code or invalid results. Use at your own risk. For more info please refer to:\nhttps://scikit-learn.org/stable/model_persistence.html#security-maintainability-limitations\n  warnings.warn(\n/Library/Frameworks/Python.framework/Versions/3.12/lib/python3.12/site-packages/sklearn/utils/validation.py:2739: UserWarning: X does not have valid feature names, but StandardScaler was fitted with feature names\n  warnings.warn(\n/Library/Frameworks/Python.framework/Versions/3.12/lib/python3.12/site-packages/sklearn/utils/validation.py:2739: UserWarning: X does not have valid feature names, but StandardScaler was fitted with feature names\n  warnings.warn(\n",
+      "returncode": 0,
+      "duration_seconds": 5.371910095214844
+    }
+  },
+  "summary": {
+    "total_suites": 4,
+    "passed_suites": 4,
+    "failed_suites": 0,
+    "total_duration_seconds": 17.604779720306396
+  }
+}

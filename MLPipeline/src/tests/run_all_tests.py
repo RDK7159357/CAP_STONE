@@ -165,7 +165,7 @@ class TestRunner:
             "numpy",
             "tensorflow",
             "joblib",
-            "scikit-learn",
+            "sklearn",  # use importable name to avoid false negatives
         ]
         
         missing = []
@@ -173,7 +173,7 @@ class TestRunner:
         
         for package in required_packages:
             try:
-                __import__(package.replace('-', '_'))
+                __import__(package)
                 installed.append(package)
             except ImportError:
                 missing.append(package)
