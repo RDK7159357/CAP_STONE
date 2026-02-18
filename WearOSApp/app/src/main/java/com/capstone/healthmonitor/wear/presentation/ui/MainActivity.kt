@@ -283,12 +283,21 @@ fun HealthMonitorScreen(
     LaunchedEffect(anomalyMetric?.id, notificationsEnabled, hapticsEnabled) {
         val newId = anomalyMetric?.id
         if (newId != null && newId != lastAnomalyId) {
+            Log.d("AnomalyDetection", "New anomaly detected! HR: ${anomalyMetric?.heartRate} BPM, ID: $newId")
+            
             if (hapticsEnabled) {
                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                Log.d("AnomalyDetection", "Haptic feedback triggered")
             }
             if (notificationsEnabled) {
                 sendAnomalyNotification(context, anomalyMetric)
+                Log.d("AnomalyDetection", "Notification sent")
             }
+            
+            // Auto-navigate to Anomaly Alert screen to show the alert
+            currentScreen = Screen.Anomaly
+            Log.d("AnomalyDetection", "Navigated to Anomaly Alert screen")
+            
             lastAnomalyId = newId
         }
     }
@@ -304,7 +313,10 @@ fun HealthMonitorScreen(
             onOpenManualEntry = { currentScreen = Screen.ManualEntry },
             onOpenExport = { currentScreen = Screen.Export },
             anomalyMetric = anomalyMetric,
-            isServiceRunning = isServiceRunning
+            isServiceRunning = isServiceRunning,
+            healthRepository = healthRepository,
+            defaultUserId = defaultUserId,
+            defaultDeviceId = defaultDeviceId
         )
 
         Screen.Anomaly -> AnomalyAlertScreen(
@@ -370,9 +382,13 @@ private fun HomeScreen(
     onOpenManualEntry: () -> Unit,
     onOpenExport: () -> Unit,
     anomalyMetric: HealthMetric?,
-    isServiceRunning: Boolean
+    isServiceRunning: Boolean,
+    healthRepository: HealthRepository,
+    defaultUserId: String,
+    defaultDeviceId: String
 ) {
     val listState = rememberScalingLazyListState()
+    val scope = rememberCoroutineScope()
     val unsyncedCount = healthMetrics.count { !it.isSynced }
 
     Scaffold(timeText = { TimeText() }) {
@@ -573,6 +589,22 @@ private fun HomeScreen(
                     Chip(onClick = onOpenManualEntry, label = { Text("Manual") }, modifier = Modifier.weight(1f).padding(horizontal = 2.dp))
                     Chip(onClick = onOpenExport, label = { Text("Export") }, modifier = Modifier.weight(1f).padding(horizontal = 2.dp))
                 }
+            }
+
+            // 9. Test Anomaly Button
+            item { Spacer(modifier = Modifier.height(6.dp)) }
+
+            item {
+                Chip(
+                    onClick = {
+                        scope.launch {
+                            createTestAnomaly(healthRepository, defaultUserId, defaultDeviceId)
+                        }
+                    },
+                    label = { Text("Test Anomaly") },
+                    modifier = Modifier.fillMaxWidth(0.9f),
+                    icon = { Text("⚠️") }
+                )
             }
 
             item { Spacer(modifier = Modifier.height(28.dp)) }
@@ -1066,3 +1098,36 @@ private fun isHealthServiceRunning(context: Context): Boolean {
         serviceInfo.service.className == HealthMonitoringService::class.java.name
     }
 }
+
+/**
+ * Creates a test anomaly metric to demonstrate the anomaly detection system
+ * Generates a synthetic metric with elevated heart rate (155 BPM) to trigger detection
+ */
+private suspend fun createTestAnomaly(
+    healthRepository: HealthRepository,
+    userId: String,
+    deviceId: String
+) {
+    Log.d("TestAnomaly", "Creating test anomaly metric with HR=155 BPM (threshold=140)")
+    
+    val testMetric = HealthMetric(
+        userId = userId,
+        timestamp = System.currentTimeMillis(),
+        heartRate = 155f,  // Above the 140 BPM anomaly threshold
+        steps = 1200,      // Moderate activity
+        calories = 95f,    // Some activity
+        distance = 0.8f,   // In meters
+        deviceId = deviceId,
+        isSynced = false,
+        batteryLevel = 85
+    )
+    
+    val result = healthRepository.saveMetric(testMetric)
+    if (result.isSuccess) {
+        Log.d("TestAnomaly", "✓ Test anomaly metric saved successfully!")
+        Log.d("TestAnomaly", "Expected behavior: Anomaly Alert screen should appear + haptics + notification")
+    } else {
+        Log.e("TestAnomaly", "✗ Failed to create test anomaly: ${result.exceptionOrNull()?.message}")
+    }
+}
+
