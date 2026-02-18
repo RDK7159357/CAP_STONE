@@ -165,8 +165,8 @@ python src/models/train_lstm_autoencoder.py \
     --batch-size 32 \
     --output models/saved_models/lstm_autoencoder.h5
 
-# Deploy to AWS SageMaker (optional)
-python src/deployment/deploy_to_sagemaker.py
+# Export models for Lambda deployment
+python export_for_lambda.sh
 ```
 
 ### Phase 4: Mobile Dashboard (30 min)

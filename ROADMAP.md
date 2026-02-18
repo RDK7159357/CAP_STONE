@@ -36,13 +36,13 @@
 - [ ] Deploy AWS Lambda for data ingestion
 - [ ] Setup DynamoDB for time-series storage
 - [ ] Configure API Gateway with authentication
-- [ ] Implement SageMaker training pipeline
+- [x] Implement local ML training pipeline with Lambda deployment
 - [ ] Create model registry (S3 + versioning)
 
 ## Phase 3: Integration & ML Training (Weeks 7-8)
 
 ### Week 7: Cloud ML Training & Deployment
-- [ ] Train advanced LSTM Autoencoder on SageMaker
+- [x] Train Isolation Forest and export for Lambda container
 - [ ] Train time-series forecasting model
 - [ ] Implement model optimization (quantization, pruning)
 - [ ] Create TFLite conversion pipeline

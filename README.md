@@ -1,168 +1,549 @@
 # Real-Time Health Monitoring System
 
-**A Hybrid Edge-Cloud Health Monitoring Solution** featuring personalized, context-aware anomaly detection with on-device ML models for instant privacy-preserving insights, enhanced by cloud-based deep learning for continuous improvement.
+**A Hybrid Edge-Cloud Health Monitoring Solution** featuring continuous background health monitoring with on-device ML models for instant privacy-preserving insights, enhanced by serverless cloud-based inference for anomaly detection.
 
-## Project Overview
+## 🎯 Project Overview
 
 This system continuously monitors vital signs from a Wear OS smartwatch using a **hybrid architecture**:
-- 🎯 **Edge-first**: On-device TensorFlow Lite models provide instant, personalized anomaly detection
-- 🧠 **ML-powered**: Lightweight neural networks for context classification and pattern recognition
-- ☁️ **Cloud-enhanced**: Advanced deep learning models train in the cloud, deploy to edge devices
-- 🔄 **Continuous learning**: Cloud aggregates insights, improves models, pushes updates to devices
+- 🎯 **Edge-first**: On-device TensorFlow Lite models provide instant activity classification and anomaly detection
+- 🧠 **ML-powered**: Lightweight neural networks (Activity Classifier + LSTM Autoencoder) running on-watch
+- ☁️ **Cloud-enhanced**: Lambda containerized inference with scikit-learn Isolation Forest
+- 🔄 **Continuous monitoring**: Background service runs 24/7 using Wear OS PassiveMonitoringClient
+- 🔒 **Privacy-preserving**: Primary detection on-device, only aggregated metrics sent to cloud
 
-## 🌟 Unique Innovation
+## 🌟 Key Features
 
-**Hybrid Edge-Cloud ML with Personalized Context-Awareness**
+### ✅ Continuous Background Monitoring
+- **24/7 data collection** even when watch screen is off or app is closed
+- **PassiveMonitoringClient** for battery-efficient passive health data capture
+- **Auto-starts** on device boot and app launch
+- **Foreground service** ensures monitoring isn't killed by system
 
-Unlike traditional health monitors that use either fixed thresholds OR cloud-only ML, our hybrid approach combines:
-- ✨ **Personal on-device ML** - TensorFlow Lite models learn YOUR unique patterns locally
-- 🏃 **ML-based activity recognition** - Neural network classifies activity states accurately
-- 🔒 **Privacy-preserving** - Primary detection on-device, only aggregated insights to cloud
-- ⚡ **Instant response** - Edge inference for immediate alerts (< 100ms)
-- 🧠 **Cloud intelligence** - LSTM models train on historical data, deploy optimized models to edge
-- 🔄 **Federated learning** - Improve models across users without sharing personal data
+### ✅ Hybrid Edge-Cloud ML
+- **Edge TFLite Models** (on-device):
+  - Activity Classifier: Classifies activities (sleep, rest, walk, run, exercise, other)
+  - LSTM Anomaly Detector: Detects patterns using sequence reconstruction
+  - Inference time: <20ms, Size: ~65KB total
+  
+- **Cloud Lambda Inference**:
+  - Isolation Forest model (scikit-learn)
+  - Containerized Lambda function (1024MB)
+  - Models stored in S3, loaded on-demand
+  - Real-time anomaly scoring
 
-## Architecture
+### ✅ Intelligent Data Sync
+- **Periodic sync** every 15-60 minutes (configurable)
+- **Batched uploads** to minimize network usage
+- **WorkManager** for reliable background sync
+- **Retry logic** with exponential backoff
+- Tracks sync status per metric
+
+## 🏗️ System Architecture
 
 ```
-┌──────────────────────────────────────────────────────────────┐
-│                  WEAR OS WATCH (Edge Computing)              │
-│  ┌────────────┐  ┌──────────────┐  ┌───────────────────┐   │
-│  │  Sensors   │→ │  TFLite      │→ │  Anomaly Engine   │   │
-│  │  (HR, Accel)│  │  Activity    │  │  (Personal Model) │   │
-│  └────────────┘  │  Classifier  │  └─────────┬─────────┘   │
-│                   └──────────────┘            ↓              │
-│  ┌────────────────────────────────────────────────────┐     │
-│  │        Instant Alert (< 100ms latency)             │     │
-│  └────────────────────────────────────────────────────┘     │
-└────────────────────────────┬─────────────────────────────────┘
-                             ↓ (Periodic sync + model updates)
-┌──────────────────────────────────────────────────────────────┐
-│                    CLOUD BACKEND (ML Pipeline)               │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────┐  │
-│  │  DynamoDB    │→ │  LSTM        │→ │  Model Training  │  │
-│  │  (Time-series)│  │  Autoencoder │  │  & Optimization  │  │
-│  └──────────────┘  └──────────────┘  └────────┬─────────┘  │
-│                                                 ↓             │
-│  ┌──────────────────────────────────────────────────────┐   │
-│  │  TFLite Model Export → Push to Edge Devices         │   │
-│  └──────────────────────────────────────────────────────┘   │
-│                         ↓                                    │
-│  ┌──────────────┐  ┌──────────────┐                         │
-│  │  Dashboard   │  │  Advanced    │                         │
-│  │ (React Native)│  │  Analytics   │                         │
-│  └──────────────┘  └──────────────┘                         │
-└──────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────┐
+│                  WEAR OS WATCH (Edge Layer)                         │
+│                                                                     │
+│  ┌──────────────────────────────────────────────────────────────┐ │
+│  │ HealthMonitoringService (Foreground Service - 24/7)          │ │
+│  │  - PassiveMonitoringClient (continuous background collection)│ │
+│  │  - Auto-saves every 30s to Room Database                     │ │
+│  └────────────────────────┬─────────────────────────────────────┘ │
+│                           ↓                                         │
+│  ┌───────────────────────────────────────────────────────────┐    │
+│  │ EdgeMlEngine (On-Device Inference)                        │    │
+│  │  ┌──────────────────┐  ┌────────────────────────────┐    │    │
+│  │  │ Activity         │  │ LSTM Anomaly Detector      │    │    │
+│  │  │ Classifier       │  │ (Sequence Reconstruction)  │    │    │
+│  │  │ TFLite (~15KB)   │  │ TFLite (~50KB)             │    │    │
+│  │  │ <5ms inference   │  │ ~20ms inference            │    │    │
+│  │  └──────────────────┘  └────────────────────────────┘    │    │
+│  └───────────────────────────────────────────────────────────┘    │
+│                           ↓                                         │
+│  ┌───────────────────────────────────────────────────────────┐    │
+│  │ DataSyncWorker (Periodic - every 15-60 min)              │    │
+│  │  - Batches unsynced metrics                              │    │
+│  │  - Enriches with edge ML results                         │    │
+│  │  - HTTP POST with API key auth                           │    │
+│  └────────────────────────┬──────────────────────────────────┘    │
+└────────────────────────────┼──────────────────────────────────────┘
+                             ↓ HTTPS POST
+┌─────────────────────────────────────────────────────────────────────┐
+│              AWS CLOUD BACKEND (ap-south-2)                         │
+│                                                                     │
+│  ┌──────────────────────────────────────────────────────────────┐ │
+│  │ API Gateway (u8tkgz3vsf...amazonaws.com/prod)               │ │
+│  │  - /health-data/ingest - /health-data/sync                  │ │
+│  │  - /notifications/register                                   │ │
+│  │  - API Key Authentication                                    │ │
+│  └────────────────────────┬─────────────────────────────────────┘ │
+│                           ↓                                         │
+│  ┌─────────────────────────────────────────────────────────────┐  │
+│  │ HealthDataIngestion Lambda (Python 3.9, 512MB)             │  │
+│  │  1. Validate & store to DynamoDB                           │  │
+│  │  2. Invoke inference Lambda if needed                      │  │
+│  │  3. Publish alerts to SNS                                  │  │
+│  └────────────┬────────────────────────┬──────────────────────┘  │
+│               ↓                        ↓                           │
+│  ┌────────────────────┐  ┌─────────────────────────────────────┐ │
+│  │ DynamoDB Tables    │  │ HealthAnomalyInference Lambda       │ │
+│  │  - HealthMetrics   │  │ (Container 1024MB)                  │ │
+│  │  - HealthPushTokens│  │  - Isolation Forest (scikit-learn)  │ │
+│  │                    │  │  - Loads model from S3              │ │
+│  │ S3 Bucket          │  │  - Returns anomaly score            │ │
+│  │  - Model artifacts │  └─────────────────────────────────────┘ │
+│  │    (*.pkl)         │               ↓                           │
+│  └────────────────────┘  ┌─────────────────────────────────────┐ │
+│                          │ SNS Topic (health-alerts)           │ │
+│                          │  → HealthSnsToExpo Lambda           │ │
+│                          │  → SMS Alerts                       │ │
+│                          │  → Expo Push Notifications          │ │
+│                          └─────────────────────────────────────┘ │
+└─────────────────────────────────────────────────────────────────────┘
+                                    ↓
+                   ┌────────────────────────────────┐
+                   │  React Native Mobile Dashboard │
+                   │  - Real-time metrics display   │
+                   │  - Push notifications          │
+                   │  - Charts & analytics          │
+                   └────────────────────────────────┘
 ```
 
-## Project Structure
+## 📂 Project Structure
 
 ```
 CAP_STONE/
-├── WearOSApp/              # Android Wear OS application
-├── CloudBackend/           # Cloud functions and APIs
-├── MLPipeline/             # Machine Learning models and preprocessing
-├── MobileDashboard_RN/     # React Native + Expo mobile app for visualization
-├── docs/                   # Documentation
-└── scripts/                # Utility scripts
+├── WearOSApp/                    # Wear OS smartwatch application
+│   ├── app/src/main/
+│   │   ├── java/.../
+│   │   │   ├── data/            # Repository, DAO, API
+│   │   │   ├── domain/          # ML Engine, Use Cases
+│   │   │   ├── service/         # Background Service
+│   │   │   └── presentation/    # UI (Jetpack Compose)
+│   │   └── assets/models/       # TFLite models (*.tflite)
+│   └── build.gradle.kts
+│
+├── CloudBackend/                 # AWS serverless backend
+│   └── aws-lambda/
+│       ├── deploy.sh            # One-click deployment script
+│       ├── lambda_function.py   # Data ingestion Lambda
+│       ├── lambda_inference_sklearn.py  # Anomaly inference
+│       ├── sns_to_expo.py       # Push notification handler
+│       └── Dockerfile.inference # Container for ML Lambda
+│
+├── MLPipeline/                   # Machine learning training
+│   ├── build_edge_models.sh    # Build TFLite models
+│   ├── export_for_lambda.sh    # Export cloud models
+│   ├── src/models/
+│   │   ├── train_activity_tflite.py
+│   │   ├── train_lstm_tflite.py
+│   │   └── train_isolation_forest_sklearn.py
+│   └── models/
+│       ├── tflite/             # Edge models
+│       └── saved_models/       # Cloud models
+│
+└── MobileDashboard_RN/          # React Native mobile app
+    ├── App.tsx                 # Root component
+    ├── src/
+    │   ├── screens/            # Home, Alerts, Settings
+    │   ├── components/         # Reusable components
+    │   ├── services/           # API client
+    │   ├── store/              # Zustand state
+    │   └── config/             # API config
+    └── package.json
 ```
 
-## Features
+## 🔍 How It Works
 
-### 🎯 Core Innovation (Hybrid Edge-Cloud ML)
-- ✅ **On-device TensorFlow Lite models** - Instant inference on smartwatch (< 100ms)
-- ✅ **ML-based activity recognition** - Neural network classifies movement patterns
-- ✅ **Personalized anomaly detection** - LSTM Autoencoder learns your unique patterns
-- ✅ **Federated learning** - Models improve from population without sharing your data
-- ✅ **Cloud-trained, edge-deployed** - Best of both worlds
-- ✅ **Offline-capable** - Works without internet, syncs when connected
+### Data Collection Flow
+1. **WearOS Service** starts on boot/app launch
+2. **PassiveMonitoringClient** collects HR, steps, calories every 30s
+3. **EdgeMlEngine** runs TFLite inference:
+   - Activity classification (6 states)
+   - Anomaly detection (LSTM reconstruction)
+4. **Save to Room DB** with edge ML results
+5. **WorkManager** triggers sync every 15-60 minutes
+6. **Batch upload** to AWS API Gateway
+7. **Lambda** stores to DynamoDB, invokes cloud inference
+8. **SNS** publishes alerts to mobile app
 
-### 🧠 Machine Learning Features
-- ✅ **Edge ML**: TFLite activity classifier (6 states: sleep, rest, walk, run, exercise, other)
-- ✅ **Edge ML**: Lightweight anomaly detector for instant alerts
-- ✅ **Cloud ML**: LSTM Autoencoder for complex pattern recognition
-- ✅ **Cloud ML**: Time-series forecasting for predictive alerts
-- ✅ **Model versioning**: A/B testing and gradual rollout of improved models
-- ✅ **Continuous improvement**: Models retrain weekly on aggregated data
+### Anomaly Detection Logic
+```
+Edge Score (TFLite LSTM): MSE reconstruction error → [0, 1]
+Cloud Score (Isolation Forest): Contamination-based → [0, 1]
 
-### 📱 Platform Features
-- ✅ Real-time vital signs monitoring (Heart Rate, SpO2, Steps, Calories, Movement)
-- ✅ 7-day personalized baseline learning (on-device)
-- ✅ Local data storage with Room database
-- ✅ Smart cloud sync (batched, compression, retry logic)
-- ✅ Immediate on-device ML-powered notifications
-- ✅ Interactive dashboard with predictive insights
-- ✅ Battery-optimized adaptive sampling
+if edgeScore >= 0.5:
+    ALERT (edge detected)
+elif cloudScore >= 0.5:
+    ALERT (cloud detected)
+elif heartRate > 140 or heartRate < 40:
+    ALERT (rule-based)
+```
 
-## Tech Stack
+## 🔧 Configuration
 
-### Wear OS App
-- **Language**: Kotlin
-- **Framework**: Jetpack Compose for Wear OS
-- **Key Libraries**: 
-  - Health Services API
-  - Room Persistence
-  - Retrofit
-  - Hilt (Dependency Injection)
-  - WorkManager
-
-### Cloud Backend
-- **Platform**: AWS (API Gateway + Lambda + DynamoDB)
-- **Alternative**: Google Cloud (Cloud Functions + Firestore)
-- **Language**: Python/Node.js
-
-### ML Pipeline (Hybrid Edge-Cloud)
-- **Edge Deployment**: TensorFlow Lite (on Wear OS)
-- **Cloud Training**: TensorFlow/Keras, PyTorch
-- **Model Optimization**: Quantization, Pruning for edge deployment
-- **Libraries**: Scikit-learn, Pandas, NumPy, Optuna
-- **Models**: 
-  - Edge: TFLite Activity Classifier, Lightweight Anomaly Detector
-  - Cloud: LSTM Autoencoder, Attention-based Time Series Models
-- **MLOps**: Model versioning, A/B testing, performance monitoring
+### WearOS App
+[ApiConfig.kt](WearOSApp/app/src/main/java/com/capstone/healthmonitor/wear/data/network/ApiConfig.kt):
+```kotlin
+const val BASE_URL = "https://YOUR-API-ID.execute-api.ap-south-2.amazonaws.com/prod/"
+const val API_KEY = "YOUR_API_KEY_HERE"
+```
 
 ### Mobile Dashboard
-- **Framework**: React Native + Expo
-- **Language**: TypeScript
-- **State Management**: Zustand
-- **Storage**: AsyncStorage
-- **Notifications**: Expo Notifications
-- **Navigation**: React Navigation (Bottom Tabs)
-- **Features**: Real-time charts, push notifications, dark mode, offline support
+[api.ts](MobileDashboard_RN/src/config/api.ts):
+```typescript
+export const API_BASE_URL = 'https://YOUR-API-ID.execute-api.ap-south-2.amazonaws.com/prod';
+export const API_KEY = 'YOUR_API_KEY_HERE';
+```
 
-## Getting Started
+### Lambda Environment Variables (set by deploy.sh)
+- `TABLE_NAME`: HealthMetrics
+- `PUSH_TOKEN_TABLE`: HealthPushTokens
+- `API_KEY`: Auto-generated API key
+- `SNS_TOPIC_ARN`: ARN of health-alerts topic
+- `CLOUD_INFERENCE_FUNCTION`: HealthAnomalyInference
+- `MODEL_BUCKET`: health-ml-models
+- `MODEL_KEY`: isolation_forest/model.pkl
+
+## ⚠️ Troubleshooting
+
+### WearOS App Issues
+
+**Service not starting:**
+```bash
+# Check permissions
+adb shell pm list permissions -g | grep BODY_SENSORS
+
+# Check service status
+adb logcat | grep "HealthMonitorService"
+
+# Restart service
+adb shell am stopservice com.capstone.healthmonitor.wear/.service.HealthMonitoringService
+adb shell am startservice com.capstone.healthmonitor.wear/.service.HealthMonitoringService
+```
+
+**TFLite models not loading:**
+```bash
+# Rebuild models
+cd MLPipeline && ./build_edge_models.sh
+
+# Check assets
+adb shell ls /data/app/.../assets/models/
+
+# View logs
+adb logcat | grep "TfLiteSanityCheck\|EdgeMlEngine"
+```
+
+**Sync failing:**
+```bash
+# Check network
+adb shell ping google.com
+
+# Test API endpoint
+curl -X POST YOUR_ENDPOINT -H 'X-API-Key: YOUR_KEY' -d '{...}'
+
+# View sync logs
+adb logcat | grep "DataSyncWorker\|HealthRepository"
+```
+
+### Cloud Backend Issues
+
+**Lambda errors:**
+```bash
+# Tail logs
+aws logs tail /aws/lambda/HealthDataIngestion --region ap-south-2 --follow
+
+# Check function config
+aws lambda get-function --function-name HealthDataIngestion --region ap-south-2
+
+# Test directly
+aws lambda invoke --function-name HealthDataIngestion --payload '...' out.json --region ap-south-2
+```
+
+**API Gateway 403:**
+- Ensure `X-API-Key` header is present and correct
+- Check API Gateway usage plan association
+- Verify Lambda permissions for API Gateway invocation
+
+**DynamoDB issues:**
+```bash
+# Check table
+aws dynamodb describe-table --table-name HealthMetrics --region ap-south-2
+
+# Query data
+aws dynamodb scan --table-name HealthMetrics --limit 5 --region ap-south-2
+```
+
+## 🧪 Testing
+
+### Unit Tests
+```bash
+# WearOS
+cd WearOSApp && ./gradlew test
+
+# Lambda (local)
+cd CloudBackend/aws-lambda && python -m pytest
+```
+
+### Integration Tests
+```bash
+# Test full pipeline
+./test_lambda_handler.sh
+```
+
+## 📊 Monitoring
+
+- **CloudWatch Logs**: Lambda execution logs
+- **CloudWatch Metrics**: Lambda invocations, errors, duration
+- **DynamoDB Metrics**: Read/write capacity, throttling
+- **API Gateway Metrics**: Request count, latency, 4xx/5xx errors
+
+## 🤝 Contributing
+
+This is an academic capstone project. For educational purposes only.
+
+## 📄 License
+
+MIT License - See [LICENSE](LICENSE) file
+
+## 👤 Author
+
+Ramadugu Dhanush - Capstone Project 2026
+
+## 📧 Contact
+
+For questions or support, please open an issue in the repository.
+
+## ✨ Implemented Features
+
+### 🎯 Continuous Health Monitoring
+- ✅ **24/7 background monitoring** - Runs continuously even when screen is off
+- ✅ **Passive data collection** - Uses Wear OS PassiveMonitoringClient
+- ✅ **Auto-start on boot** - Service starts automatically on device reboot
+- ✅ **Battery optimized** - Efficient passive monitoring with minimal battery impact
+- ✅ **Real-time metrics** - Heart rate, steps, calories collected every 30s
+- ✅ **Local storage** - Room database for offline-first architecture
+
+### 🧠 Hybrid ML Anomaly Detection
+
+**Edge Layer (On-Device TFLite)**:
+- ✅ **Activity Classifier** - Identifies 6 activity states (sleep/rest/walk/run/exercise/other)
+- ✅ **LSTM Anomaly Detector** - Sequence-based anomaly detection using reconstruction error
+- ✅ **Instant inference** - <20ms latency on wearable device
+- ✅ **Fallback heuristics** - Rule-based detection if TFLite models unavailable
+- ✅ **Model versioning** - Tracks which model version produced each prediction
+
+**Cloud Layer (Lambda Containers)**:
+- ✅ **Isolation Forest** - Scikit-learn unsupervised anomaly detection
+- ✅ **Serverless inference** - Containerized Lambda with 1024MB memory
+- ✅ **S3 model storage** - Models loaded on-demand from S3
+- ✅ **Hybrid scoring** - Combines edge and cloud anomaly scores
+
+### 📱 Smart Data Synchronization
+- ✅ **Periodic sync** - WorkManager schedules sync every 15-60 minutes
+- ✅ **Batched uploads** - Sends multiple metrics in single API call
+- ✅ **Network constraints** - Only syncs when connected to network
+- ✅ **Retry logic** - Exponential backoff on failures
+- ✅ **Sync tracking** - Marks metrics as synced in local database
+- ✅ **Data cleanup** - Automatic deletion of old synced data (7-30 days)
+
+### 🔔 Intelligent Alerting
+- ✅ **SNS topic integration** - Centralized alert distribution
+- ✅ **Expo push notifications** - Real-time alerts to mobile dashboard
+- ✅ **SMS alerts** - Optional SMS notifications for critical anomalies
+- ✅ **Multi-subscriber** - Easy to add webhooks, email, etc.
+- ✅ **Haptic feedback** - On-watch vibration for immediate alerts
+
+### 📊 Mobile Dashboard (React Native)
+- ✅ **Real-time metrics** - Live display of latest health data
+- ✅ **Historical trends** - Charts showing heart rate over time
+- ✅ **Sync status** - Shows pending vs. synced metrics
+- ✅ **Push notifications** - Receives anomaly alerts from cloud
+- ✅ **Settings management** - Configure sync interval, notifications
+- ✅ **Manual data entry** - Add metrics manually for testing
+- ✅ **Data export** - Export metrics as CSV for analysis
+
+## 🛠️ Tech Stack
+
+### WearOS App
+- **Language**: Kotlin
+- **UI**: Jetpack Compose for Wear OS
+- **Architecture**: MVVM with Repository pattern
+- **Dependency Injection**: Hilt/Dagger
+- **Database**: Room (SQLite)
+- **Networking**: Retrofit + OkHttp
+- **Background Work**: WorkManager
+- **Health Data**: Health Services API (PassiveMonitoringClient)
+- **ML**: TensorFlow Lite (v2.15)
+- **Key Features**:
+  - Foreground service for 24/7 monitoring
+  - Passive data collection with minimal battery impact
+  - On-device ML inference with TFLite
+  - Offline-first with periodic cloud sync
+
+### AWS Cloud Backend
+- **Region**: ap-south-2 (Hyderabad)
+- **API Gateway**: REST API with API key authentication
+- **Lambda Functions**:
+  - `HealthDataIngestion` (Python 3.9, Zip deployment, 512MB)
+  - `HealthAnomalyInference` (Python 3.9, Container image, 1024MB)
+  - `HealthSnsToExpo` (Python 3.9, Zip deployment, 256MB)
+- **Database**: DynamoDB (Pay-per-request billing)
+  - `HealthMetrics` table (userId + timestamp composite key)
+  - `HealthPushTokens` table (userId + deviceId composite key)
+- **Storage**: S3 bucket (`health-ml-models`) for ML artifacts
+- **Messaging**: SNS topic (`health-alerts`) for multi-channel notifications
+- **Container Registry**: ECR for Lambda container images
+- **IAM**: Fine-grained permissions for Lambda execution
+
+### ML Pipeline
+- **Training Environment**: Local (Python 3.11 with TensorFlow 2.15)
+- **Edge Models** (TFLite):
+  - Activity Classifier: Dense NN (4 inputs → 32 → 32 → 6 outputs)
+  - Anomaly Detector: Conv1D-based autoencoder (seq_len=10, feat_dim=4)
+  - Total size: ~65KB, Quantized with DEFAULT optimization
+- **Cloud Models** (scikit-learn):
+  - Isolation Forest: Unsupervised anomaly detection
+  - Serialized with joblib/pickle to S3
+- **Deployment**:
+  - Edge: Models copied to `WearOSApp/app/src/main/assets/models/`
+  - Cloud: Models uploaded to S3, loaded by Lambda at runtime
+- **Scripts**:
+  - `build_edge_models.sh` - Train and export TFLite models
+  - `export_for_lambda.sh` - Export scikit-learn models for Lambda
+  - `deploy.sh` - Deploy Lambda functions with dependencies
+
+### Mobile Dashboard
+- **Framework**: React Native 0.73 + Expo SDK 50
+- **Language**: TypeScript
+- **State Management**: Zustand (lightweight alternative to Redux)
+- **Navigation**: React Navigation 6 (Bottom Tabs)
+- **UI Components**: React Native Paper
+- **Charts**: react-native-chart-kit
+- **Notifications**: Expo Notifications + expo-device
+- **Storage**: AsyncStorage (for settings and tokens)
+- **Networking**: Axios
+- **Styling**: StyleSheet with responsive design
+- **Platform Support**: iOS and Android
+
+## 🚀 Quick Start
 
 ### Prerequisites
 
-- Android Studio (latest version)
-- Wear OS SDK (API 30+)
-- Python 3.8+
-- Node.js 16+ and npm/yarn
-- Expo CLI
-- AWS/GCP Account
+- **Android Studio**: Hedgehog or later (for WearOS app)
+- **Python**: 3.11+ (for ML training)
+- **Node.js**: 18+ (for React Native dashboard)
+- **Expo CLI**: `npm install -g expo-cli`
+- **AWS CLI**: Configured with credentials
+- **Docker**: For building Lambda container images
+- **Physical Wear OS watch** or emulator (API 30+)
 
-### Phase 1: Setup Wear OS App
+### 1️⃣ Deploy Cloud Backend
 
-See [WearOSApp/README.md](WearOSApp/README.md) for detailed instructions.
+```bash
+cd CloudBackend/aws-lambda
 
-### Phase 2: Setup Cloud Backend
+# Deploy entire stack (API Gateway + Lambda + DynamoDB + S3 + SNS)
+./deploy.sh
 
-See [CloudBackend/README.md](CloudBackend/README.md) for detailed instructions.
+# Note the outputs:
+# - API Endpoint: https://u8tkgz3vsf.execute-api.ap-south-2.amazonaws.com/prod/health-data/ingest
+# - API Key: [Your API Key]
+```
 
-### Phase 3: Setup ML Pipeline
+### 2️⃣ Build Edge ML Models (Optional)
 
-See [MLPipeline/READ_RN/README.md](MobileDashboard_RN) for detailed instructions.
+```bash
+cd MLPipeline
 
-### Phase 4: Setup Mobile Dashboard
+# Build TFLite models for WearOS
+./build_edge_models.sh
 
-See [MobileDashboard/README.md](MobileDashboard/README.md) for detailed instructions.
+# Models are automatically copied to WearOSApp/app/src/main/assets/models/
+```
 
-## Development Phases
+### 3️⃣ Setup WearOS App
 
-1. **Phase 1**: Wear OS data acquisition and permissions
-2. **Phase 2**: Cloud synchronization and storage
-3. **Phase 3**: ML anomaly detection implementation
-4. **Phase 4**: Dashboard and alerting system
+```bash
+cd WearOSApp
+
+# Update API configuration
+# Edit: app/src/main/java/com/capstone/healthmonitor/wear/data/network/ApiConfig.kt
+# Set: BASE_URL and API_KEY from deploy.sh output
+
+# Build and install
+./gradlew installDebug
+
+# Or open in Android Studio and run
+```
+
+### 4️⃣ Setup Mobile Dashboard
+
+```bash
+cd MobileDashboard_RN
+
+# Install dependencies
+npm install
+
+# Update API configuration
+# Edit: src/config/api.ts
+# Set: API_BASE_URL and API_KEY
+
+# Start development server
+npx expo start
+
+# Press 'a' for Android or 'i' for iOS
+```
+
+### 5️⃣ Test End-to-End
+
+1. **Start WearOS app** - Service should auto-start on launch
+2. **Check logs**: `adb logcat | grep HealthMonitor`
+   - Should see "Background Monitoring" active
+   - Should see "TFLite sanity checks complete"
+3. **Wait for data collection** (~30 seconds)
+4. **Trigger manual sync**: Settings → Apply (with sync interval)
+5. **Check mobile dashboard** - Should display synced metrics
+6. **Test cloud API**:
+   ```bash
+   curl -X POST https://your-api-endpoint/health-data/ingest \
+     -H 'Content-Type: application/json' \
+     -H 'X-API-Key: YOUR_API_KEY' \
+     -d '{ "userId": "test", "timestamp": 1708300800000, "deviceId": "test-device", "metrics": {"heartRate": 75, "steps": 5000} }'
+   ```
+
+## 📚 Detailed Documentation
+
+- **[SYSTEM_OVERVIEW.md](SYSTEM_OVERVIEW.md)** - Complete system architecture and data flow
+- **[QUICK_START.md](QUICK_START.md)** - Step-by-step setup guide
+- **[PROJECT_SETUP_GUIDE.md](PROJECT_SETUP_GUIDE.md)** - Development environment setup
+- **[WearOSApp/README.md](WearOSApp/README.md)** - WearOS app details
+- **[CloudBackend/README.md](CloudBackend/README.md)** - AWS backend deployment
+- **[MLPipeline/README.md](MLPipeline/README.md)** - ML model training and deployment
+- **[MobileDashboard_RN/README.md](MobileDashboard_RN/README.md)** - React Native dashboard
+
+## 📊 Project Status
+
+### ✅ Completed
+- [x] WearOS continuous background monitoring with PassiveMonitoringClient
+- [x] Edge TFLite models integrated and working (Activity + Anomaly)
+- [x] AWS Lambda serverless backend deployed
+- [x] DynamoDB storage with efficient schema
+- [x] API Gateway with API key authentication
+- [x] SNS notifications with Expo push integration
+- [x] React Native mobile dashboard
+- [x] Hybrid edge-cloud anomaly detection
+- [x] Smart data sync with WorkManager
+- [x] Auto-start service on boot
+
+### 🚧 Future Enhancements
+- [ ] Model retraining pipeline (periodic updates)
+- [ ] A/B testing for model versions
+- [ ] Federated learning implementation
+- [ ] Advanced analytics dashboard
+- [ ] Multi-user support with authentication
+- [ ] Historical trend prediction
+- [ ] Integration with health APIs (Google Fit, Apple Health)
 
 ## Contributing
 

@@ -29,7 +29,7 @@
 [DynamoDB]
   - Time-series store (PK=userId, SK=timestamp)
         |
-        +--> [DynamoDB Stream/Kinesis] --> [SageMaker Endpoint]
+        +--> [Invoke] --> [Lambda Container Inference]
         |                                   - LSTM AE / Isolation Forest
         |                                   - returns anomalyScore/flag
         |
@@ -46,7 +46,7 @@
 ## 3. Component Responsibilities
 - WearOSApp (Kotlin/Compose): sensor read, buffer (Room), background sync (WorkManager), retry/backoff, minimal battery.
 - CloudBackend (API GW + Lambda + DynamoDB): authn/z, validation, persistence, streaming to ML, alert fan-out.
-- MLPipeline (Python/TF/Sklearn): preprocessing, training (LSTM AE, Isolation Forest), model registry (S3), deploy to SageMaker endpoint.
+- MLPipeline (Python/TF/Sklearn): preprocessing, training (LSTM AE, Isolation Forest), model registry (S3), deploy to Lambda container.
 - MobileDashboard_RN (React Native + TypeScript): fetch metrics, render charts, manage notifications (Expo Notifications), offline cache (AsyncStorage), settings (Zustand store).
 - Observability: CloudWatch logs/metrics, X-Ray traces, alarms (SNS), dashboards.
 
@@ -54,7 +54,7 @@
 1) Sense: Health Services API samples every 5s; stored in Room.
 2) Sync: WorkManager batches every 1–2m (gzip, JSON); retries on failure.
 3) Ingest: Retrofit POST → API Gateway; Lambda auth/validate → DynamoDB write.
-4) Stream: DynamoDB Stream/Kinesis triggers inference Lambda → SageMaker endpoint.
+4) Inference: Ingestion Lambda directly invokes containerized inference Lambda with scikit-learn.
 5) Detect: Model returns anomalyScore & flag; persisted back to DynamoDB.
 6) Alert: SNS/FCM push to user; dashboard polls/refreshes charts.
 7) Observe: CloudWatch metrics/alarms; logs with requestId/userId hash.
@@ -63,7 +63,7 @@
 - Edge: API Gateway REST; optional CloudFront for caching.
 - Compute: Lambda (ingestion), Lambda (inference driver), provisioned concurrency for p95.
 - Storage: DynamoDB on-demand; S3 for model/artifacts; S3 (optional) data lake.
-- ML: SageMaker endpoint (auto-scaling); Canary for model versions.
+- ML: Lambda container inference (auto-scaling); Model versioning via S3 keys.
 - Messaging: SNS → FCM/Apple APNs; optional SQS DLQ.
 - Identity: Cognito (JWT) or API key for PoC; IAM least-privilege.
 - Observability: CloudWatch Metrics/Logs, X-Ray tracing, alarms.
@@ -79,7 +79,7 @@
 
 ## 7. Reliability & Performance
 - Targets: p95 ingest < 150 ms, p95 model < 150 ms, end-to-end < 2 s, 99.9% uptime.
-- Scaling: Lambda + API GW auto; DynamoDB on-demand WCU/RCU; SageMaker autoscaling warm pools.
+- Scaling: Lambda + API GW auto; DynamoDB on-demand WCU/RCU; Lambda container concurrent execution.
 - Resilience: DLQ for Lambda, retries with backoff, idempotent writes (requestId), fallback rule-based thresholds if model unavailable.
 - Cost controls: DynamoDB on-demand, right-size endpoint, turn off notebooks; CloudFront caching for configs.
 
@@ -111,7 +111,7 @@
 
 ## 10. ML Design
 - Online: LSTM Autoencoder (reconstruction error) + Isolation Forest fallback; threshold calibrated per user segment.
-- Offline pipeline: data_cleaner.py → train_lstm_autoencoder.py → evaluate → register artifact (S3) → deploy_to_sagemaker.py.
+- Offline pipeline: data_cleaner.py → train_lstm_autoencoder.py → evaluate → register artifact (S3) → export for Lambda container.
 - Monitoring: input drift (KS test), latency, error rate, alert on p95 > target.
 - Rollout: blue/green (prod-v1/prod-v2 endpoints) with weighted traffic; auto-rollback on alarm.
 

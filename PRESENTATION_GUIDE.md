@@ -91,7 +91,7 @@
 
 ### Key Components
 1. **Edge Layer**: Wear OS app with TFLite models
-2. **Cloud Layer**: AWS (Lambda, DynamoDB, SageMaker)
+2. **Cloud Layer**: AWS (Lambda, DynamoDB, S3, SNS)
 3. **ML Pipeline**: Model training, optimization, deployment
 4. **Dashboard**: React Native + Expo mobile app for visualization
 
@@ -314,7 +314,7 @@ dependencies {
 ### Cloud Backend (AWS)
 - **Lambda**: Python 3.9 (data ingestion, processing)
 - **DynamoDB**: Time-series storage (NoSQL)
-- **SageMaker**: ML model training (p3.2xlarge GPU instances)
+- **Lambda Container**: ML inference (Isolation Forest in Docker container)
 - **API Gateway**: RESTful API endpoints
 - **S3**: Model registry and versioning
 
@@ -399,7 +399,7 @@ class PersonalBaselineEngine {
 
 **Cloud Infrastructure**:
 - **AWS Account**: Free tier + educational credits
-- **SageMaker**: ml.p3.2xlarge (8 vCPUs, 61 GB RAM, Tesla V100 GPU)
+- **Lambda Container**: 1024 MB, containerized scikit-learn inference
 - **Lambda**: 1GB memory, Python 3.9 runtime
 
 ### Software Setup
@@ -766,7 +766,7 @@ Other          0.01  0.03  0.02  0.01  0.01    0.92
 | 4 | Activity classification ML model | ✅ Complete |
 | 5 | Anomaly detection ML model | ✅ Complete |
 | 6 | Cloud infrastructure (AWS) | ✅ Complete |
-| 7 | ML training pipeline (SageMaker) | ✅ Complete |
+| 7 | ML training pipeline (Local/Lambda) | ✅ Complete |
 | 8 | Model optimization (TFLite) | ✅ Complete |
 | 9 | Integration testing | ✅ Complete |
 | 10 | User pilot study (5 volunteers) | ✅ Complete |
@@ -939,7 +939,7 @@ This project demonstrates the feasibility of **intelligent, privacy-preserving h
 
 4. **AWS Services**
    - AWS Lambda: https://aws.amazon.com/lambda/
-   - AWS SageMaker: https://aws.amazon.com/sagemaker/
+   - AWS Lambda Containers: https://docs.aws.amazon.com/lambda/latest/dg/images-create.html
    - DynamoDB: https://aws.amazon.com/dynamodb/
 
 5. **Datasets**

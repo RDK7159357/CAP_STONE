@@ -296,7 +296,7 @@ Use Health Services Sensor Panel in emulator:
 
 **Purpose**: The cloud backend provides:
 - Real-time data ingestion and storage
-- ML model training infrastructure (SageMaker)
+- ML model training infrastructure (Local Python + Lambda containers)
 - Advanced analytics and insights
 - Mobile dashboard API
 - Model deployment to edge devices
@@ -415,34 +415,22 @@ cd ../WearOSApp
 ./gradlew assembleDebug
 ```
 
-### 3.4 Setup Cloud ML Training Pipeline (AWS SageMaker)
+### 3.4 Deploy Models to Lambda Containers
 
 ```bash
-# Deploy advanced cloud models
-python src/deployment/deploy_to_sagemaker.py \
-    --model-type lstm_autoencoder \
-    --instance-type ml.p3.2xlarge
+# Export trained models for Lambda deployment
+cd MLPipeline
+./export_for_lambda.sh
 
-# Setup automated retraining
-python src/deployment/setup_training_pipeline.py \
-    --schedule "cron(0 0 ? * SUN *)"  # Weekly on Sunday
-```
+# Deploy Lambda inference function with Docker container
+cd ../CloudBackend/aws-lambda
+./deploy.sh
 
-### 3.3 Deploy Model to Cloud
-
-#### AWS SageMaker
-```bash
-python src/deployment/deploy_to_sagemaker.py
-```
-
-#### Google Cloud AI Platform
-```bash
-gcloud ai-platform models create health_anomaly_detector
-gcloud ai-platform versions create v1 \
-    --model health_anomaly_detector \
-    --runtime-version 2.11 \
-    --python-version 3.8 \
-    --framework tensorflow
+# The deploy script will:
+# 1. Build Docker image for inference Lambda
+# 2. Push to AWS ECR
+# 3. Create/update Lambda function with container image
+# 4. Upload model artifacts (isolation_forest.pkl, scaler.pkl) to S3
 ```
 
 ---
