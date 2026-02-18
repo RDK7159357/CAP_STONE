@@ -80,13 +80,14 @@ export const useHealthStore = create<HealthStore>((set, get) => ({
   fetchHealthMetrics: async () => {
     set({ isLoading: true, error: null });
     try {
-      // Try to fetch from API
-      const response = await apiClient.get('/health/metrics');
-      const metrics: HealthMetric[] = response.data;
-      
+      // Try to fetch from read endpoint
+      const response = await apiClient.get(`/health/metrics?userId=${ApiConfig.userId}&limit=100`);
+      const data = response.data || response;
+      const metrics: HealthMetric[] = data.metrics || [];
+
       // Store in local storage for offline support
       await AsyncStorage.setItem('healthMetrics', JSON.stringify(metrics));
-      
+
       get().setMetrics(metrics);
     } catch (error) {
       console.error('API fetch error:', error);
@@ -121,11 +122,28 @@ export const useHealthStore = create<HealthStore>((set, get) => ({
         id: `${Date.now()}`,
         ...metricData,
       };
-      
-      await apiClient.post('/health/metrics', metric);
-      
-      // Refresh metrics after upload
-      await get().fetchHealthMetrics();
+
+      const payload = {
+        userId: ApiConfig.userId,
+        timestamp: new Date(metric.timestamp).getTime(),
+        metrics: {
+          heartRate: metric.heartRate,
+          steps: metric.steps,
+          calories: metric.calories,
+          distance: metric.distance,
+        },
+        deviceId: 'mobile',
+      };
+
+      await apiClient.post(`/${ApiConfig.endpoints.healthData}`, payload);
+
+      // Cache the uploaded metric for local display
+      const cachedData = await AsyncStorage.getItem('healthMetrics');
+      const existing = cachedData ? (JSON.parse(cachedData) as HealthMetric[]) : [];
+      const updated = [metric, ...existing];
+      await AsyncStorage.setItem('healthMetrics', JSON.stringify(updated));
+
+      get().setMetrics(updated);
       return true;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to upload metric';

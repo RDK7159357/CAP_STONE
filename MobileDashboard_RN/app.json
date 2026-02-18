@@ -38,11 +38,21 @@
           "icon": "./assets/notification-icon.png",
           "color": "#ffffff"
         }
-      ]
+      ],
+      "expo-asset"
     ],
     "notification": {
       "icon": "./assets/notification-icon.png",
       "color": "#1f5cdb"
-    }
+    },
+    "extra": {
+      "apiBaseUrl": "https://u8tkgz3vsf.execute-api.ap-south-2.amazonaws.com/prod",
+      "apiKey": "27tpgpLoMk7A8mDknvE8S8AhzwBeS6fm1U7KpQhT",
+      "userId": "user_001",
+      "eas": {
+        "projectId": "78f21863-a420-4bbf-9164-d95d1d46242b"
+      }
+    },
+    "owner": "rdk7"
   }
 }

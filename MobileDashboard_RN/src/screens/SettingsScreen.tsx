@@ -7,12 +7,12 @@ import {
   View,
   ScrollView,
   StyleSheet,
-  SafeAreaView,
   Text,
   TouchableOpacity,
   Switch,
   Alert,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Colors, Spacing, BorderRadius } from '@/config/theme.config';
 import { storageService } from '@/services/storage.service';

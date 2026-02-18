@@ -12,7 +12,7 @@ import androidx.health.services.client.PassiveListenerCallback
 import androidx.health.services.client.data.DataPointContainer
 import androidx.health.services.client.data.DataType
 import androidx.health.services.client.data.PassiveMonitoringCapabilities
-import androidx.health.services.client.data.PassiveMonitoringConfig
+import androidx.health.services.client.data.PassiveListenerConfig
 import androidx.lifecycle.LifecycleService
 import androidx.lifecycle.lifecycleScope
 import com.capstone.healthmonitor.wear.data.repository.HealthRepository
@@ -122,7 +122,7 @@ class HealthMonitoringService : LifecycleService() {
                 Log.d(TAG, "Passive monitoring supported data types: ${capabilities.supportedDataTypesPassiveMonitoring}")
                 
                 // Configure passive monitoring for continuous background data collection
-                val passiveMonitoringConfig = PassiveMonitoringConfig.builder()
+                val passiveListenerConfig = PassiveListenerConfig.builder()
                     .setDataTypes(
                         setOf(
                             DataType.HEART_RATE_BPM,
@@ -134,7 +134,7 @@ class HealthMonitoringService : LifecycleService() {
 
                 Log.d(TAG, "Setting up passive listener callback...")
                 passiveMonitoringClient.setPassiveListenerCallback(
-                    passiveMonitoringConfig,
+                    passiveListenerConfig,
                     passiveListenerCallback
                 )
                 

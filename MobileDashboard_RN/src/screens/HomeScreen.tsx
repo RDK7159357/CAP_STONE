@@ -8,10 +8,10 @@ import {
   ScrollView,
   StyleSheet,
   RefreshControl,
-  SafeAreaView,
   Text,
   TouchableOpacity,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useHealthStore } from '@/store/health.store';
 import {

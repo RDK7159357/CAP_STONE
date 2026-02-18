@@ -14,6 +14,8 @@ Notifications.setNotificationHandler({
     shouldShowAlert: true,
     shouldPlaySound: true,
     shouldSetBadge: true,
+    shouldShowBanner: true,
+    shouldShowList: true,
   }),
 });
 
@@ -105,7 +107,7 @@ class NotificationService {
     };
 
     try {
-      await fetch(`${ApiConfig.baseUrl}${ApiConfig.endpoints.registerPushToken}`, {
+      await fetch(`${ApiConfig.baseUrl}/${ApiConfig.endpoints.registerPushToken}`, {
         method: 'POST',
         headers: ApiConfig.headers,
         body: JSON.stringify(payload),
@@ -130,10 +132,10 @@ class NotificationService {
 
   private cleanup(): void {
     if (this.foregroundSubscription) {
-      Notifications.removeNotificationSubscription(this.foregroundSubscription);
+      this.foregroundSubscription.remove();
     }
     if (this.responseSubscription) {
-      Notifications.removeNotificationSubscription(this.responseSubscription);
+      this.responseSubscription.remove();
     }
     if (this.tokenSubscription) {
       this.tokenSubscription.remove();

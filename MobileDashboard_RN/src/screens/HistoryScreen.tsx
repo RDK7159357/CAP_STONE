@@ -7,11 +7,11 @@ import {
   View,
   ScrollView,
   StyleSheet,
-  SafeAreaView,
   Text,
   FlatList,
   SectionList,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors, Spacing, BorderRadius } from '@/config/theme.config';
 import { useHealthStore } from '@/store/health.store';
 import { HealthMetric } from '@/types';
