@@ -1,14 +1,33 @@
-Place your TensorFlow Lite models here:
-- activity_classifier.tflite : multi-class activity model (e.g., sleep/rest/walk/run/exercise/other)
-- anomaly_lstm.tflite : LSTM autoencoder (or classifier) for anomaly scoring
+TensorFlow Lite models for on-device inference:
 
-Current files are placeholders to allow builds; replace them with real models.
+1. activity_classifier.tflite
+   - Task: Multi-class activity classification (sleep/rest/walk/run/exercise/other)
+   - Architecture: Dense NN (4 → 32 → 32 → 6 softmax)
+   - Input: [1, 4] float32 — [heartRate, steps, calories, distance]
+   - Output: [1, 6] softmax probabilities
+   - Size: ~15KB
+   - Current Accuracy: 34.3% (Normalization layer not adapted)
+   - NOTE: Cloud model (Extra Trees) achieves 86.2% — see MLPipeline/README.md
 
-Input/output expectations (EdgeMlEngine defaults):
-- Input tensor: 1x4 float [heartRate, steps, calories, distance]
-- activity_classifier output: 1x6 softmax probabilities (labels: sleep, rest, walk, run, exercise, other)
-- anomaly_lstm output: 1x1 score in [0,1], where >= 0.5 is anomalous
+2. anomaly_lstm.tflite
+   - Task: Anomaly detection via sequence reconstruction error
+   - Architecture: Conv1D autoencoder (seq_len=10, feat_dim=4)
+   - Input: [1, 10, 4] float32 — sequence of [heartRate, steps, calories, distance]
+   - Output: [1, 10, 4] reconstructed sequence
+   - Size: ~50KB
+   - Anomaly scoring: MSE between input and output
+     Normal MSE: ~19.56, Tachycardia MSE: ~91.89, Extreme: ~3973
+     WARNING: Bradycardia MSE (6.63) is LOWER than normal — cannot detect bradycardia
+   - NOTE: Cloud model (Random Forest, F1=1.00) is significantly more accurate
 
-Regenerating a simple anomaly LSTM (reference):
-python train_lstm_tflite.py --epochs 5 --seq-len 10 --out-dir models/tflite
-Then copy models/tflite/anomaly_lstm.tflite here.
+Regenerating models:
+  cd MLPipeline
+  source venv/bin/activate
+  python src/models/train_activity_tflite.py
+  python src/models/train_lstm_tflite.py
+  cp models/tflite/*.tflite ../WearOSApp/app/src/main/assets/models/
+
+Best cloud models (for reference):
+  Anomaly detection: best_anomaly_randomforest.pkl (F1=1.00)
+  Activity classification: best_activity_extratrees.pkl (Accuracy=86.2%)
+  Location: MLPipeline/models/saved_models/

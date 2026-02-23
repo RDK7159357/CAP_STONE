@@ -16,6 +16,18 @@ import kotlin.math.abs
 /**
  * Edge ML engine that wraps TFLite activity classification and LSTM anomaly detection.
  * Falls back to lightweight heuristic rules when TFLite models are unavailable.
+ *
+ * Edge Models (on-device TFLite):
+ *   - Activity Classifier: Dense NN, ~15KB, <5ms inference
+ *     NOTE: Current TFLite accuracy is 34.3%. Cloud model (Extra Trees) achieves 86.2%.
+ *     Consider retraining with adapted Normalization layer.
+ *   - Anomaly Detector: Conv1D autoencoder, ~50KB, ~20ms inference
+ *     NOTE: Cannot detect bradycardia (MSE 6.63 < normal MSE 19.56).
+ *     Cloud model (Random Forest, F1=1.00) is more reliable.
+ *
+ * Cloud Models (Lambda inference, more accurate):
+ *   - Anomaly: RandomForestClassifier (F1=1.00, AUC=1.00)
+ *   - Activity: ExtraTreesClassifier (Accuracy=86.2%)
  */
 @Singleton
 class EdgeMlEngine @Inject constructor(
@@ -115,7 +127,10 @@ class EdgeMlEngine @Inject constructor(
                 }.average().toFloat()
                 
                 // Normalize MSE to 0-1 score (higher MSE = more anomalous)
-                // Typical MSE for normal samples is ~20-30, anomalies are 50+
+                // Tested performance (Feb 2026):
+                //   Normal MSE: ~19.56, Tachycardia MSE: ~91.89, Extreme MSE: ~3973
+                //   Bradycardia MSE: ~6.63 (LOWER than normal — model cannot detect this)
+                // Using 100 as divisor maps normal→0.2, tachycardia→0.9, extreme→1.0
                 val score = (mse / 100f).coerceIn(0f, 1f)
                 
                 AnomalyResult(

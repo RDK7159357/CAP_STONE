@@ -59,14 +59,25 @@ app/
 
 ## Key Components
 
-### HealthService
-Foreground service that continuously monitors vital signs using Health Services API.
+### HealthMonitoringService
+Foreground service that continuously monitors vital signs using Health Services PassiveMonitoringClient (24/7 background collection).
+
+### EdgeMlEngine
+On-device ML inference engine with TFLite models + heuristic fallback:
+
+| Model | Task | Accuracy | Size | Latency |
+|-------|------|:--------:|:----:|:-------:|
+| Activity Classifier | 6-class activity | 34.3% (edge) | ~15KB | <5ms |
+| Anomaly LSTM | Reconstruction error | Partial | ~50KB | ~20ms |
+| Heuristic Fallback | Rule-based detection | ~75% | — | <1ms |
+
+> **Note**: Cloud models are significantly more accurate (Random Forest F1=1.00 for anomaly, Extra Trees 86.2% for activity). Edge models serve as a privacy-preserving first pass; cloud inference provides the definitive score.
 
 ### Room Database
-Local storage for buffering health metrics before cloud sync.
+Local storage for buffering health metrics before cloud sync. Offline-first architecture.
 
-### SyncWorker
-WorkManager worker that periodically syncs buffered data to cloud backend.
+### DataSyncWorker
+WorkManager worker that periodically syncs buffered data to cloud backend (every 15-60 minutes).
 
 ## Testing with Emulator
 

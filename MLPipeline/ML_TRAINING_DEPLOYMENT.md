@@ -1,6 +1,38 @@
 # ML Model Training & Deployment Guide
 
-This guide walks through training the LSTM autoencoder and deploying it to AWS Lambda for real-time anomaly detection.
+This guide covers training, evaluating, and deploying ML models for real-time health anomaly detection and activity classification.
+
+## 🏆 Best Models (Tested Feb 2026)
+
+| Task | Best Model | Performance | Model File |
+|------|-----------|:-----------:|------------|
+| **Anomaly Detection** | Random Forest | F1 = 1.0000 | `best_anomaly_randomforest.pkl` |
+| **Activity Classification** | Extra Trees | Acc = 86.20% | `best_activity_extratrees.pkl` |
+| Anomaly Detection (unsupervised) | Isolation Forest | F1 = 0.8874 | `isolation_forest.pkl` |
+| Edge Anomaly Detection | Conv1D Autoencoder | Partial | `anomaly_lstm.tflite` |
+| Edge Activity Classification | Dense NN | Acc = 34.27% | `activity_classifier.tflite` |
+
+### Anomaly Detection Model Rankings
+
+| Rank | Model | F1 | AUC-ROC | Precision | Recall | Type |
+|:----:|-------|:--:|:-------:|:---------:|:------:|------|
+| 👑 | **Random Forest** | **1.0000** | 1.0000 | 1.0000 | 1.0000 | Supervised |
+| #2 | Gradient Boosting | 1.0000 | 1.0000 | 1.0000 | 1.0000 | Supervised |
+| #3 | Extra Trees | 1.0000 | 1.0000 | 1.0000 | 1.0000 | Supervised |
+| #4 | XGBoost | 0.9883 | 1.0000 | 0.9900 | 0.9867 | Supervised |
+| #5 | Isolation Forest | 0.8874 | 0.9955 | 0.9367 | 0.8430 | Unsupervised |
+| #6 | One-Class SVM | 0.7221 | 0.8528 | 0.7622 | 0.6860 | Unsupervised |
+| #7 | Local Outlier Factor | 0.2053 | 0.4732 | 0.2167 | 0.1950 | Unsupervised |
+
+### Activity Classification Model Rankings
+
+| Rank | Model | Accuracy | Best Per-Class F1 | Worst Per-Class F1 |
+|:----:|-------|:--------:|:------------------:|:-------------------:|
+| 👑 | **Extra Trees** | **86.20%** | sleep: 0.9247 | exercise: 0.7935 |
+| #2 | XGBoost | 85.58% | sleep: 0.9245 | exercise: 0.7837 |
+| #3 | Random Forest | 85.42% | sleep: 0.9203 | exercise: 0.7856 |
+| #4 | Gradient Boosting | 85.16% | sleep: 0.9266 | exercise: 0.7762 |
+| #5 | TFLite Dense NN | 34.27% | sleep: 0.6068 | run: 0.0000 |
 
 ## 1) Setup
 
@@ -9,7 +41,7 @@ This guide walks through training the LSTM autoencoder and deploying it to AWS L
 cd MLPipeline
 python3 -m venv venv
 source venv/bin/activate
-pip install -r requirements.txt
+pip install numpy pandas scikit-learn xgboost joblib matplotlib tqdm
 ```
 
 ### Generate synthetic data (optional):
@@ -18,9 +50,28 @@ python src/data/generate_synthetic_data.py
 # Creates data/processed/health_metrics.csv (25,000 samples)
 ```
 
-## 2) Train the LSTM Autoencoder
+## 2) Train & Evaluate All Models
 
-### Basic training:
+### Recommended: Run comprehensive test suite
+```bash
+python src/tests/comprehensive_ml_test.py --output test_results_comprehensive.json
+```
+
+This automatically:
+1. Evaluates the existing model (shows the before state)
+2. Retrains Isolation Forest with proper scaler
+3. Compares 7 anomaly detection models (supervised + unsupervised)
+4. Compares 4 activity classifiers against TFLite
+5. Runs edge case tests (12 physiological scenarios)
+6. Performs 5-fold cross-validation
+7. Saves the best models to `models/saved_models/`
+
+### Legacy: Train Isolation Forest only
+```bash
+bash train_pipeline_sklearn.sh
+```
+
+### Legacy: Train LSTM Autoencoder
 ```bash
 python src/models/train_lstm_autoencoder.py \
   --data data/processed/health_metrics.csv \
@@ -31,57 +82,28 @@ python src/models/train_lstm_autoencoder.py \
   --output models/saved_models/lstm_autoencoder.h5
 ```
 
-### What this does:
-1. Loads 25,000 health metrics samples
-2. Preprocesses (normalization, feature engineering)
-3. Creates 60-sample sequences (5-minute windows at 5-second intervals)
-4. Splits into train/validation (80/20)
-5. Trains LSTM autoencoder with 3 layers (128→64→32→64→128)
-6. Early stopping and learning rate reduction
-7. Calculates 95th percentile threshold for anomaly detection
-8. Saves model + threshold + training plots
+## 3) Model Architectures
 
-### Expected output:
-```
-Training samples: ~10,000 sequences
-Validation samples: ~2,500 sequences
-Threshold (95th percentile): ~0.0058
-Training time: ~30–60 minutes on GPU
-Model size: ~4–8 MB
-```
+### Random Forest (Best Anomaly Model)
+- **Type**: Supervised ensemble classifier
+- **Estimators**: 200 trees, max_depth=10
+- **Preprocessing**: StandardScaler normalization
+- **Features**: heartRate, steps, calories, distance
+- **Class balancing**: `class_weight='balanced'`
+- **CV F1**: 1.0000 ± 0.0000
 
-## 3) Model Architecture
+### Extra Trees (Best Activity Classifier)
+- **Type**: Supervised ensemble classifier
+- **Estimators**: 300 trees, max_depth=15
+- **Classes**: sleep, rest, walk, run, exercise, other
+- **Preprocessing**: StandardScaler normalization
+- **Class balancing**: `class_weight='balanced'`
 
-### Encoder:
-```
-Input (60 timesteps × 7 features)
-  ↓ LSTM(128) + Dropout(0.2)
-  ↓ LSTM(64) + Dropout(0.2)
-  ↓ LSTM(32) [bottleneck]
-```
-
-### Decoder:
-```
-RepeatVector (60 timesteps)
-  ↓ LSTM(32) + Dropout(0.2)
-  ↓ LSTM(64) + Dropout(0.2)
-  ↓ LSTM(128) + Dropout(0.2)
-  ↓ TimeDistributed(Dense(7))
-Output (60 timesteps × 7 features)
-```
-
-### Features (7 total):
-1. `heartRate`: BPM (normalized)
-2. `steps`: Step count (normalized)
-3. `calories`: Energy expenditure (normalized)
-4. `distance`: Distance traveled (normalized)
-5. `hour_sin`, `hour_cos`: Cyclical hour encoding
-6. `is_weekend`: Binary weekend flag
-
-### Loss function:
-- **MSE (Mean Squared Error)** between input and reconstruction
-- Autoencoder learns to reconstruct normal data
-- Anomalies have high reconstruction error
+### LSTM Autoencoder (Deep Learning)
+- **Encoder**: Input(60×7) → LSTM(128) → LSTM(64) → LSTM(32)
+- **Decoder**: RepeatVector(60) → LSTM(32) → LSTM(64) → LSTM(128) → Dense(7)
+- **Loss**: MSE (reconstruction error)
+- **Anomaly threshold**: 95th percentile of normal data error
 
 ## 4) Export for Lambda
 

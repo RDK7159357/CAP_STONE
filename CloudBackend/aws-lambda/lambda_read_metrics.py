@@ -48,12 +48,15 @@ def lambda_handler(event, context):
         query_params = event.get('queryStringParameters') or {}
         
         # Route to appropriate handler
+        if path.endswith('/health'):
+            return success_response({'status': 'ok'})
+        if path.endswith('/health-data/sync'):
+            return handle_get_history(normalize_sync_params(query_params))
         if path.endswith('/health-data/history'):
             return handle_get_history(query_params)
-        elif path.endswith('/health/metrics'):
+        if path.endswith('/health/metrics'):
             return handle_get_metrics(query_params)
-        else:
-            return error_response(404, 'Not found')
+        return error_response(404, 'Not found')
 
     except Exception as e:
         logger.error(f"Error processing request: {str(e)}", exc_info=True)
@@ -116,6 +119,16 @@ def handle_get_metrics(query_params):
     except Exception as e:
         logger.error(f"Error querying metrics: {str(e)}", exc_info=True)
         return error_response(500, f'Failed to retrieve metrics: {str(e)}')
+
+
+def normalize_sync_params(query_params):
+    if not query_params:
+        return {}
+
+    normalized = dict(query_params)
+    if 'since' in normalized and 'startDate' not in normalized:
+        normalized['startDate'] = normalized['since']
+    return normalized
 
 
 def handle_get_history(query_params):

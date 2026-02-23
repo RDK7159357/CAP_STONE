@@ -334,7 +334,9 @@ For questions or support, please open an issue in the repository.
 - ✅ **Model versioning** - Tracks which model version produced each prediction
 
 **Cloud Layer (Lambda Containers)**:
-- ✅ **Isolation Forest** - Scikit-learn unsupervised anomaly detection
+- ✅ **Random Forest Classifier** - Best anomaly detection model (F1=1.00, AUC-ROC=1.00)
+- ✅ **Extra Trees Classifier** - Best activity classification model (Accuracy=86.2%)
+- ✅ **Isolation Forest** - Unsupervised anomaly detection backup (F1=0.89)
 - ✅ **Serverless inference** - Containerized Lambda with 1024MB memory
 - ✅ **S3 model storage** - Models loaded on-demand from S3
 - ✅ **Hybrid scoring** - Combines edge and cloud anomaly scores
@@ -397,13 +399,15 @@ For questions or support, please open an issue in the repository.
 - **IAM**: Fine-grained permissions for Lambda execution
 
 ### ML Pipeline
-- **Training Environment**: Local (Python 3.11 with TensorFlow 2.15)
+- **Training Environment**: Local (Python 3.11 with scikit-learn, XGBoost, TensorFlow 2.15)
 - **Edge Models** (TFLite):
   - Activity Classifier: Dense NN (4 inputs → 32 → 32 → 6 outputs)
   - Anomaly Detector: Conv1D-based autoencoder (seq_len=10, feat_dim=4)
   - Total size: ~65KB, Quantized with DEFAULT optimization
 - **Cloud Models** (scikit-learn):
-  - Isolation Forest: Unsupervised anomaly detection
+  - **Random Forest Classifier**: Best anomaly detection (F1=1.00, AUC=1.00) 🏆
+  - **Extra Trees Classifier**: Best activity classification (Accuracy=86.2%) 🏆
+  - Isolation Forest: Unsupervised anomaly detection backup (F1=0.89)
   - Serialized with joblib/pickle to S3
 - **Deployment**:
   - Edge: Models copied to `WearOSApp/app/src/main/assets/models/`
@@ -412,6 +416,7 @@ For questions or support, please open an issue in the repository.
   - `build_edge_models.sh` - Train and export TFLite models
   - `export_for_lambda.sh` - Export scikit-learn models for Lambda
   - `deploy.sh` - Deploy Lambda functions with dependencies
+  - `src/tests/comprehensive_ml_test.py` - Full model evaluation suite
 
 ### Mobile Dashboard
 - **Framework**: React Native 0.73 + Expo SDK 50

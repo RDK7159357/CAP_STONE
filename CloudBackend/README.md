@@ -8,20 +8,44 @@ AWS-based serverless backend for receiving, storing, and processing health data 
 ```
 API Gateway → Lambda Functions → DynamoDB
                     ↓
-              ML Pipeline (SageMaker)
+              ML Inference Lambda
+              (Random Forest Classifier)
                     ↓
               SNS (Notifications)
 ```
 
+## ML Model
+
+**Best Model: Random Forest Classifier** (updated Feb 2026)
+
+| Metric | Value |
+|--------|:-----:|
+| F1-Score | **1.0000** |
+| AUC-ROC | 1.0000 |
+| Precision | 1.0000 |
+| Recall | 1.0000 |
+| 5-fold CV F1 | 1.0000 ± 0.0000 |
+
+- **Model file**: `best_anomaly_randomforest.pkl`
+- **Scaler file**: `best_anomaly_scaler.pkl`
+- **S3 path**: `s3://health-ml-models/randomforest/`
+- **Features**: heartRate, steps, calories, distance
+- **Type**: Supervised ensemble classifier (200 trees)
+- **Previous model**: Isolation Forest (F1=0.89) — replaced
+
 ## Components
 
-1. **API Gateway**: RESTful API endpoints
+1. **API Gateway**: RESTful API endpoints with API key authentication
 2. **Lambda Functions**: 
-   - `health-data-ingestion`: Receives and validates data
-   - `anomaly-detector`: Runs ML model inference
-   - `notification-sender`: Sends push notifications
-3. **DynamoDB**: Time-series data storage
-4. **SNS**: Push notification service
+   - `HealthDataIngestion`: Receives, validates, and stores health data
+   - `HealthAnomalyInference`: Runs Random Forest anomaly detection (container, 1024MB)
+   - `HealthSnsToExpo`: Sends push notifications via Expo
+   - `HealthReadMetrics`: Reads metrics for dashboard
+3. **DynamoDB Tables**:
+   - `HealthMetrics`: Time-series health data (userId + timestamp)
+   - `HealthPushTokens`: Push notification tokens (userId + deviceId)
+4. **S3 Bucket**: `health-ml-models` for model artifacts
+5. **SNS Topic**: `health-alerts` for multi-channel notifications
 
 ## Setup
 
@@ -29,81 +53,30 @@ API Gateway → Lambda Functions → DynamoDB
 - AWS Account
 - AWS CLI installed and configured
 - Python 3.9+
-- Node.js (for AWS CDK, optional)
+- Docker (for building inference Lambda container)
 
-### 1. Install Dependencies
+### 1. Deploy Everything (One Command)
 
 ```bash
 cd CloudBackend/aws-lambda
-pip install -r requirements.txt -t .
+./deploy.sh
 ```
 
-### 2. Deploy Infrastructure
+This automatically:
+1. Creates DynamoDB tables
+2. Creates IAM roles and policies
+3. Builds and pushes inference Docker image to ECR
+4. Uploads Random Forest model to S3
+5. Creates/updates all Lambda functions
+6. Sets up API Gateway with routes
+7. Creates SNS topic and subscriptions
+8. Outputs API endpoint and API key
 
-#### Option A: Using AWS CLI
-
-```bash
-# Create DynamoDB table
-aws dynamodb create-table \
-    --table-name HealthMetrics \
-    --attribute-definitions \
-        AttributeName=userId,AttributeType=S \
-        AttributeName=timestamp,AttributeType=N \
-    --key-schema \
-        AttributeName=userId,KeyType=HASH \
-        AttributeName=timestamp,KeyType=RANGE \
-    --billing-mode PAY_PER_REQUEST \
-    --stream-specification StreamEnabled=true,StreamViewType=NEW_IMAGE
-
-# Create Lambda execution role
-aws iam create-role \
-    --role-name HealthMonitorLambdaRole \
-    --assume-role-policy-document file://iam-policy.json
-
-# Attach policies
-aws iam attach-role-policy \
-    --role-name HealthMonitorLambdaRole \
-    --policy-arn arn:aws:iam::aws:policy/AmazonDynamoDBFullAccess
-
-# Deploy Lambda function
-zip -r function.zip .
-aws lambda create-function \
-    --function-name HealthDataIngestion \
-    --runtime python3.9 \
-    --role arn:aws:iam::YOUR_ACCOUNT_ID:role/HealthMonitorLambdaRole \
-    --handler lambda_function.lambda_handler \
-    --zip-file fileb://function.zip \
-    --timeout 30 \
-    --memory-size 512
-
-# Create API Gateway
-aws apigateway create-rest-api \
-    --name HealthMonitorAPI \
-    --description "Health Monitoring System API"
-```
-
-#### Option B: Using AWS CDK (Recommended)
+### 2. Install Dependencies (Local Testing)
 
 ```bash
-cd infrastructure
-npm install
-cdk deploy
-```
-
-### 3. Configure Environment Variables
-
-```bash
-aws lambda update-function-configuration \
-    --function-name HealthDataIngestion \
-    --environment Variables={TABLE_NAME=HealthMetrics,REGION=ap-south-2}
-```
-
-### 4. Get API Endpoint
-
-```bash
-aws apigateway get-rest-apis
-# Note the API ID and construct URL:
-# https://{api-id}.execute-api.{region}.amazonaws.com/{stage}/
+cd CloudBackend/aws-lambda
+pip install -r requirements.txt
 ```
 
 ## API Endpoints
@@ -119,7 +92,8 @@ Ingest single health metric
   "metrics": {
     "heartRate": 75.5,
     "steps": 1000,
-    "calories": 50.2
+    "calories": 50.2,
+    "distance": 0.3
   },
   "deviceId": "wear_device_001"
 }
@@ -135,67 +109,101 @@ Ingest single health metric
 ```
 
 ### POST /health-data/sync
-Batch sync multiple metrics
+Batch sync multiple metrics from Wear OS
 
-**Request:**
+### GET /health-data/history
+Get historical metrics for a user
+
+### POST /notifications/register
+Register push notification token
+
+## Anomaly Detection Flow
+
+```
+1. Wear OS sends metrics → API Gateway
+2. HealthDataIngestion Lambda stores to DynamoDB
+3. HealthDataIngestion invokes HealthAnomalyInference Lambda
+4. HealthAnomalyInference:
+   a. Downloads Random Forest model from S3 (cached after first call)
+   b. Applies StandardScaler normalization
+   c. Runs model.predict_proba() for anomaly probability
+   d. Returns is_anomaly + cloud_score (0-1)
+5. If anomaly detected → publishes to SNS → push notification
+```
+
+**Inference Response:**
 ```json
-[
-  {
-    "userId": "user_001",
-    "timestamp": 1696723200000,
-    "metrics": {...},
-    "deviceId": "wear_device_001"
-  },
-  ...
-]
+{
+  "results": [
+    {
+      "metric_id": "abc123",
+      "is_anomaly": true,
+      "cloud_score": 0.97,
+      "model_type": "RandomForestClassifier"
+    }
+  ],
+  "model_type": "RandomForestClassifier",
+  "model_supervised": true
+}
 ```
 
 ## Testing
-
-### Test Locally
-
-```bash
-python test_lambda.py
-```
 
 ### Test Deployed Function
 
 ```bash
 aws lambda invoke \
-    --function-name HealthDataIngestion \
-    --payload file://test-payload.json \
-    response.json
+    --function-name HealthAnomalyInference \
+    --payload '{"body": "{\"metrics\": [{\"heart_rate\": 175, \"steps\": 30, \"calories\": 15, \"distance\": 0.1}]}"}' \
+    response.json --region ap-south-2
+
+cat response.json
+```
+
+### Test API Endpoint
+
+```bash
+curl -X POST https://YOUR-API-ID.execute-api.ap-south-2.amazonaws.com/prod/health-data/ingest \
+  -H 'Content-Type: application/json' \
+  -H 'X-API-Key: YOUR_API_KEY' \
+  -d '{"userId": "test", "timestamp": 1708300800000, "deviceId": "test", "metrics": {"heartRate": 175, "steps": 30, "calories": 15, "distance": 0.1}}'
 ```
 
 ## Monitoring
 
-### View Logs
-
 ```bash
-aws logs tail /aws/lambda/HealthDataIngestion --follow
+# View Lambda logs
+aws logs tail /aws/lambda/HealthAnomalyInference --follow --region ap-south-2
+
+# Check function config
+aws lambda get-function --function-name HealthAnomalyInference --region ap-south-2
 ```
 
-### CloudWatch Metrics
-- Invocations
-- Duration
-- Errors
-- Throttles
+## Updating the Model
 
-## Cost Optimization
+To deploy a new model version:
 
-- Use DynamoDB on-demand pricing for variable workload
-- Set Lambda memory based on actual usage
-- Enable Lambda reserved concurrency for predictable traffic
-- Use CloudWatch Logs retention policies
+```bash
+# 1. Run comprehensive tests to train best model
+cd ../../MLPipeline
+source venv/bin/activate
+python src/tests/comprehensive_ml_test.py
+
+# 2. Upload to S3
+aws s3 cp models/saved_models/best_anomaly_randomforest.pkl \
+    s3://health-ml-models/randomforest/model.pkl --region ap-south-2
+
+aws s3 cp models/saved_models/best_anomaly_scaler.pkl \
+    s3://health-ml-models/randomforest/scaler.pkl --region ap-south-2
+
+# 3. Clear Lambda cache (force re-download)
+# The model is cached in /tmp, so updating the Lambda or waiting for cold start works
+```
 
 ## Security
 
-1. Enable API Gateway authentication (API Key or Cognito)
-2. Use VPC for Lambda functions
-3. Encrypt data at rest in DynamoDB
-4. Use IAM roles with least privilege
-5. Enable AWS WAF for API Gateway
-
-## Alternative: Google Cloud Setup
-
-See `gcp-functions/` directory for Google Cloud Platform alternative.
+1. API Gateway authentication via API Key
+2. IAM roles with least privilege
+3. S3 model bucket with read-only Lambda access
+4. Encrypted data at rest in DynamoDB
+5. CORS configured for allowed origins
