@@ -27,7 +27,7 @@ export const AnomalyAlert: React.FC<AnomalyAlertProps> = ({ anomalies }) => {
         />
         <Text style={styles.title}>Recent Anomalies</Text>
       </View>
-      
+
       {anomalies.map((anomaly) => (
         <View key={anomaly.id} style={styles.anomalyItem}>
           <MaterialCommunityIcons

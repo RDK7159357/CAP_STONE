@@ -13,7 +13,7 @@ import { ApiConfig } from '@/config/api.config';
 function getMockHealthMetrics(): HealthMetric[] {
   const now = new Date();
   const metrics: HealthMetric[] = [];
-  
+
   for (let i = 0; i < 10; i++) {
     const timestamp = new Date(now.getTime() - i * 60 * 60 * 1000);
     const isAnomaly = Math.random() > 0.8;
@@ -28,7 +28,7 @@ function getMockHealthMetrics(): HealthMetric[] {
       anomalyScore: isAnomaly ? parseFloat((Math.random() * 1).toFixed(2)) : 0,
     });
   }
-  
+
   return metrics;
 }
 
@@ -53,19 +53,19 @@ export const useHealthStore = create<HealthStore>((set, get) => ({
     const sortedMetrics = metrics.sort(
       (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
     );
-    
+
     // Get recent anomalies
     const recentAnomalies = sortedMetrics.filter(m => m.isAnomaly).slice(0, 5);
-    
+
     // Get today's metrics
     const now = new Date();
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const todayEnd = new Date(todayStart.getTime() + 24 * 60 * 60 * 1000);
-    
+
     const todayMetrics = sortedMetrics.find(
       m => new Date(m.timestamp) >= todayStart && new Date(m.timestamp) < todayEnd
     ) || null;
-    
+
     set({
       metrics: sortedMetrics,
       recentAnomalies,
@@ -91,7 +91,7 @@ export const useHealthStore = create<HealthStore>((set, get) => ({
       get().setMetrics(metrics);
     } catch (error) {
       console.error('API fetch error:', error);
-      
+
       // Fall back to cached data if available
       try {
         const cachedData = await AsyncStorage.getItem('healthMetrics');
