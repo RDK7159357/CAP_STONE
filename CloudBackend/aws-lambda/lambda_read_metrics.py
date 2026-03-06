@@ -105,6 +105,7 @@ def handle_get_metrics(query_params):
                 'distance': float(item.get('distance', metrics_data.get('distance', 0))),
                 'isAnomaly': item.get('isAnomaly', item.get('anomalyDetected', False)),
                 'anomalyScore': float(item.get('anomalyScore', item.get('cloudAnomalyScore', item.get('edgeAnomalyScore', 0)))),
+                'activityState': item.get('activityState', None),
             }
             metrics.append(metric)
 
@@ -202,6 +203,7 @@ def handle_get_history(query_params):
                 'distance': float(item.get('distance', metrics_data.get('distance', 0))),
                 'isAnomaly': item.get('isAnomaly', item.get('anomalyDetected', False)),
                 'anomalyScore': float(item.get('anomalyScore', item.get('cloudAnomalyScore', item.get('edgeAnomalyScore', 0)))),
+                'activityState': item.get('activityState', None),
             }
             metrics.append(metric)
 

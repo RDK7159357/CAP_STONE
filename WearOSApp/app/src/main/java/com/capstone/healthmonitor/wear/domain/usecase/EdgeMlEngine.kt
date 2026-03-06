@@ -19,15 +19,15 @@ import kotlin.math.abs
  *
  * Edge Models (on-device TFLite):
  *   - Activity Classifier: Dense NN, ~15KB, <5ms inference
- *     NOTE: Current TFLite accuracy is 34.3%. Cloud model (Extra Trees) achieves 86.2%.
+ *     NOTE: Current TFLite accuracy is 34.3%. Cloud model (XGBoost) achieves 85.8%.
  *     Consider retraining with adapted Normalization layer.
  *   - Anomaly Detector: Conv1D autoencoder, ~50KB, ~20ms inference
  *     NOTE: Cannot detect bradycardia (MSE 6.63 < normal MSE 19.56).
- *     Cloud model (Random Forest, F1=1.00) is more reliable.
+ *     Cloud model (Gradient Boosting, F1=0.995) is more reliable.
  *
  * Cloud Models (Lambda inference, more accurate):
- *   - Anomaly: RandomForestClassifier (F1=1.00, AUC=1.00)
- *   - Activity: ExtraTreesClassifier (Accuracy=86.2%)
+ *   - Anomaly: GradientBoostingClassifier (F1=0.995, AUC=1.00)
+ *   - Activity: XGBClassifier (Accuracy=85.8%)
  */
 @Singleton
 class EdgeMlEngine @Inject constructor(

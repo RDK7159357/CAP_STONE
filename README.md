@@ -7,7 +7,7 @@
 This system continuously monitors vital signs from a Wear OS smartwatch using a **hybrid architecture**:
 - 🎯 **Edge-first**: On-device TensorFlow Lite models provide instant activity classification and anomaly detection
 - 🧠 **ML-powered**: Lightweight neural networks (Activity Classifier + LSTM Autoencoder) running on-watch
-- ☁️ **Cloud-enhanced**: Lambda containerized inference with scikit-learn Isolation Forest
+- ☁️ **Cloud-enhanced**: Lambda containerized inference with GradientBoosting (F1=0.995)
 - 🔄 **Continuous monitoring**: Background service runs 24/7 using Wear OS PassiveMonitoringClient
 - 🔒 **Privacy-preserving**: Primary detection on-device, only aggregated metrics sent to cloud
 
@@ -26,10 +26,11 @@ This system continuously monitors vital signs from a Wear OS smartwatch using a 
   - Inference time: <20ms, Size: ~65KB total
   
 - **Cloud Lambda Inference**:
-  - Isolation Forest model (scikit-learn)
+  - GradientBoosting model (scikit-learn, F1=0.995) — best anomaly detection
+  - XGBoost activity classifier (Accuracy=85.8%) — best activity classification
   - Containerized Lambda function (1024MB)
   - Models stored in S3, loaded on-demand
-  - Real-time anomaly scoring
+  - Real-time anomaly scoring with overfitting-proof regularization
 
 ### ✅ Intelligent Data Sync
 - **Periodic sync** every 15-60 minutes (configurable)
@@ -88,7 +89,7 @@ This system continuously monitors vital signs from a Wear OS smartwatch using a 
 │  ┌────────────────────┐  ┌─────────────────────────────────────┐ │
 │  │ DynamoDB Tables    │  │ HealthAnomalyInference Lambda       │ │
 │  │  - HealthMetrics   │  │ (Container 1024MB)                  │ │
-│  │  - HealthPushTokens│  │  - Isolation Forest (scikit-learn)  │ │
+│  │  - HealthPushTokens│  │  - GradientBoosting (F1=0.995)      │ │
 │  │                    │  │  - Loads model from S3              │ │
 │  │ S3 Bucket          │  │  - Returns anomaly score            │ │
 │  │  - Model artifacts │  └─────────────────────────────────────┘ │
@@ -170,7 +171,7 @@ CAP_STONE/
 ### Anomaly Detection Logic
 ```
 Edge Score (TFLite LSTM): MSE reconstruction error → [0, 1]
-Cloud Score (Isolation Forest): Contamination-based → [0, 1]
+Cloud Score (GradientBoosting): Supervised probability → [0, 1]
 
 if edgeScore >= 0.5:
     ALERT (edge detected)
@@ -203,7 +204,8 @@ export const API_KEY = 'YOUR_API_KEY_HERE';
 - `SNS_TOPIC_ARN`: ARN of health-alerts topic
 - `CLOUD_INFERENCE_FUNCTION`: HealthAnomalyInference
 - `MODEL_BUCKET`: health-ml-models
-- `MODEL_KEY`: isolation_forest/model.pkl
+- `MODEL_KEY`: gradientboosting/model.pkl
+- `SCALER_KEY`: gradientboosting/scaler.pkl
 
 ## ⚠️ Troubleshooting
 
@@ -334,12 +336,14 @@ For questions or support, please open an issue in the repository.
 - ✅ **Model versioning** - Tracks which model version produced each prediction
 
 **Cloud Layer (Lambda Containers)**:
-- ✅ **Random Forest Classifier** - Best anomaly detection model (F1=1.00, AUC-ROC=1.00)
-- ✅ **Extra Trees Classifier** - Best activity classification model (Accuracy=86.2%)
-- ✅ **Isolation Forest** - Unsupervised anomaly detection backup (F1=0.89)
-- ✅ **Serverless inference** - Containerized Lambda with 1024MB memory
-- ✅ **S3 model storage** - Models loaded on-demand from S3
-- ✅ **Hybrid scoring** - Combines edge and cloud anomaly scores
+- ✅ **GradientBoosting Classifier** — Best anomaly detection model (F1=0.995, AUC-ROC=1.00) 🏆
+- ✅ **XGBoost Classifier** — Best activity classification model (Accuracy=85.8%) 🏆
+- ✅ **RandomForest / ExtraTrees** — Backup anomaly models (F1=0.983 / 0.966)
+- ✅ **Isolation Forest** — Unsupervised anomaly detection fallback (F1=0.491)
+- ✅ **Serverless inference** — Containerized Lambda with 1024MB memory
+- ✅ **S3 model storage** — 7 models stored (gradientboosting, randomforest, xgboost, extratrees, isolation_forest, activity)
+- ✅ **Hybrid scoring** — Combines edge and cloud anomaly scores
+- ✅ **Overfitting-proof** — All supervised models regularized (max_depth=8, min_samples_leaf=5), train-test gap < 0.01
 
 ### 📱 Smart Data Synchronization
 - ✅ **Periodic sync** - WorkManager schedules sync every 15-60 minutes
@@ -356,14 +360,15 @@ For questions or support, please open an issue in the repository.
 - ✅ **Multi-subscriber** - Easy to add webhooks, email, etc.
 - ✅ **Haptic feedback** - On-watch vibration for immediate alerts
 
-### 📊 Mobile Dashboard (React Native)
-- ✅ **Real-time metrics** - Live display of latest health data
-- ✅ **Historical trends** - Charts showing heart rate over time
-- ✅ **Sync status** - Shows pending vs. synced metrics
-- ✅ **Push notifications** - Receives anomaly alerts from cloud
-- ✅ **Settings management** - Configure sync interval, notifications
-- ✅ **Manual data entry** - Add metrics manually for testing
-- ✅ **Data export** - Export metrics as CSV for analysis
+### 📱 Mobile Dashboard (React Native)
+- ✅ **Real-time metrics** — Live display of latest health data
+- ✅ **Activity classification** — Shows detected activity (sleep/rest/walk/run/exercise) with icons
+- ✅ **Anomaly alerts** — Visual anomaly alert cards with scores
+- ✅ **Historical trends** — Grouped by date with activity + anomaly badges
+- ✅ **Push notifications** — Receives anomaly alerts from cloud
+- ✅ **Settings management** — Configure sync interval, notifications
+- ✅ **Manual data entry** — Add metrics manually for testing
+- ✅ **Offline-first** — AsyncStorage cache with mock data fallback
 
 ## 🛠️ Tech Stack
 
@@ -405,9 +410,12 @@ For questions or support, please open an issue in the repository.
   - Anomaly Detector: Conv1D-based autoencoder (seq_len=10, feat_dim=4)
   - Total size: ~65KB, Quantized with DEFAULT optimization
 - **Cloud Models** (scikit-learn):
-  - **Random Forest Classifier**: Best anomaly detection (F1=1.00, AUC=1.00) 🏆
-  - **Extra Trees Classifier**: Best activity classification (Accuracy=86.2%) 🏆
-  - Isolation Forest: Unsupervised anomaly detection backup (F1=0.89)
+  - **GradientBoosting Classifier**: Best anomaly detection (F1=0.995, AUC=1.00) 🏆
+  - **XGBoost Classifier**: Best activity classification (Accuracy=85.8%) 🏆
+  - RandomForest (F1=0.983), ExtraTrees (F1=0.966) as backups
+  - Isolation Forest: Unsupervised anomaly detection fallback (F1=0.491)
+  - All supervised models regularized (max_depth=8, min_samples_leaf=5, max_features='sqrt')
+  - Train-test F1 gaps all < 0.01 (no overfitting)
   - Serialized with joblib/pickle to S3
 - **Deployment**:
   - Edge: Models copied to `WearOSApp/app/src/main/assets/models/`

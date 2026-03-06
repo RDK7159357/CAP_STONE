@@ -53,49 +53,148 @@ except ImportError:
 # ──────────────────────────────────────────────
 
 def generate_normal_samples(n=5000, seed=42):
-    """Generate normal health data (per-interval, not cumulative)."""
+    """Generate normal health data with realistic variability.
+
+    Includes resting, sleeping, walking, jogging, and exercise states
+    so that the normal distribution is broad enough to overlap with
+    mild anomalies (preventing trivially separable data).
+    """
     rng = np.random.default_rng(seed)
-    hr = rng.normal(75, 10, size=n).clip(50, 100)
-    steps = rng.normal(100, 40, size=n).clip(0, 300)
-    calories = rng.normal(30, 10, size=n).clip(1, 80)
-    distance = rng.normal(0.3, 0.1, size=n).clip(0, 1)
-    X = np.column_stack([hr, steps, calories, distance])
-    return X.astype(np.float32)
+
+    # Allocate samples across realistic activity states
+    n_rest = int(n * 0.35)
+    n_sleep = int(n * 0.20)
+    n_walk = int(n * 0.20)
+    n_jog = int(n * 0.10)
+    n_exercise = int(n * 0.10)
+    n_other = n - n_rest - n_sleep - n_walk - n_jog - n_exercise
+
+    segments = []
+
+    # Resting (HR 60-90)
+    hr = rng.normal(72, 8, size=n_rest).clip(55, 95)
+    steps = rng.normal(30, 20, size=n_rest).clip(0, 100)
+    cal = rng.normal(18, 6, size=n_rest).clip(1, 40)
+    dist = rng.normal(0.05, 0.03, size=n_rest).clip(0, 0.2)
+    segments.append(np.column_stack([hr, steps, cal, dist]))
+
+    # Sleeping (HR 45-65)
+    hr = rng.normal(55, 6, size=n_sleep).clip(45, 68)
+    steps = rng.normal(2, 3, size=n_sleep).clip(0, 15)
+    cal = rng.normal(8, 3, size=n_sleep).clip(1, 18)
+    dist = rng.normal(0.01, 0.01, size=n_sleep).clip(0, 0.05)
+    segments.append(np.column_stack([hr, steps, cal, dist]))
+
+    # Walking (HR 75-110)
+    hr = rng.normal(90, 10, size=n_walk).clip(75, 115)
+    steps = rng.normal(130, 40, size=n_walk).clip(50, 250)
+    cal = rng.normal(40, 10, size=n_walk).clip(15, 70)
+    dist = rng.normal(0.4, 0.12, size=n_walk).clip(0.1, 0.8)
+    segments.append(np.column_stack([hr, steps, cal, dist]))
+
+    # Jogging (HR 100-140)
+    hr = rng.normal(120, 12, size=n_jog).clip(100, 145)
+    steps = rng.normal(220, 50, size=n_jog).clip(120, 350)
+    cal = rng.normal(60, 12, size=n_jog).clip(30, 90)
+    dist = rng.normal(0.7, 0.15, size=n_jog).clip(0.3, 1.2)
+    segments.append(np.column_stack([hr, steps, cal, dist]))
+
+    # Exercise (HR 110-145)
+    hr = rng.normal(135, 10, size=n_exercise).clip(110, 155)
+    steps = rng.normal(180, 60, size=n_exercise).clip(80, 350)
+    cal = rng.normal(70, 15, size=n_exercise).clip(35, 110)
+    dist = rng.normal(0.5, 0.2, size=n_exercise).clip(0.1, 1.0)
+    segments.append(np.column_stack([hr, steps, cal, dist]))
+
+    # Other / mixed (HR 65-100)
+    hr = rng.normal(82, 15, size=n_other).clip(55, 120)
+    steps = rng.normal(70, 50, size=n_other).clip(0, 200)
+    cal = rng.normal(25, 12, size=n_other).clip(1, 60)
+    dist = rng.normal(0.2, 0.15, size=n_other).clip(0, 0.6)
+    segments.append(np.column_stack([hr, steps, cal, dist]))
+
+    X = np.concatenate(segments, axis=0).astype(np.float32)
+    rng.shuffle(X)
+    return X
 
 
 def generate_anomalous_samples(n=1000, seed=123):
-    """Generate anomalous health data."""
+    """Generate anomalous health data with realistic borderline cases.
+
+    Includes a mix of obvious anomalies (extreme HR, sensor dropout) and
+    subtle/borderline anomalies (mildly elevated HR at rest, context
+    mismatches) to prevent trivially separable distributions.
+    """
     rng = np.random.default_rng(seed)
     samples = []
 
-    # High heart rate (tachycardia)
-    k = n // 4
-    hr = rng.normal(160, 15, size=k).clip(130, 220)
-    steps = rng.normal(50, 20, size=k).clip(0, 150)
-    calories = rng.normal(20, 8, size=k).clip(1, 60)
-    distance = rng.normal(0.15, 0.05, size=k).clip(0, 0.5)
-    samples.append(np.column_stack([hr, steps, calories, distance]))
+    # --- Obvious anomalies (40% of total) ---
 
-    # Low heart rate (bradycardia)
-    hr = rng.normal(38, 5, size=k).clip(25, 48)
-    steps = rng.normal(20, 10, size=k).clip(0, 60)
-    calories = rng.normal(10, 4, size=k).clip(0, 30)
-    distance = rng.normal(0.05, 0.03, size=k).clip(0, 0.2)
-    samples.append(np.column_stack([hr, steps, calories, distance]))
+    # Severe tachycardia (HR 160-220, at rest)
+    k_obvious = n // 10
+    hr = rng.normal(175, 15, size=k_obvious).clip(155, 220)
+    steps = rng.normal(15, 10, size=k_obvious).clip(0, 50)
+    cal = rng.normal(12, 5, size=k_obvious).clip(1, 30)
+    dist = rng.normal(0.03, 0.02, size=k_obvious).clip(0, 0.1)
+    samples.append(np.column_stack([hr, steps, cal, dist]))
 
-    # Extreme values (sensor malfunction)
-    hr = rng.normal(200, 20, size=k).clip(180, 250)
-    steps = rng.normal(800, 200, size=k).clip(500, 1500)
-    calories = rng.normal(250, 50, size=k).clip(150, 400)
-    distance = rng.normal(4, 1, size=k).clip(2, 8)
-    samples.append(np.column_stack([hr, steps, calories, distance]))
+    # Severe bradycardia (HR 25-38)
+    hr = rng.normal(32, 4, size=k_obvious).clip(20, 40)
+    steps = rng.normal(10, 8, size=k_obvious).clip(0, 30)
+    cal = rng.normal(6, 3, size=k_obvious).clip(0, 15)
+    dist = rng.normal(0.02, 0.02, size=k_obvious).clip(0, 0.1)
+    samples.append(np.column_stack([hr, steps, cal, dist]))
+
+    # Extreme sensor malfunction
+    hr = rng.normal(210, 20, size=k_obvious).clip(190, 260)
+    steps = rng.normal(900, 200, size=k_obvious).clip(500, 1500)
+    cal = rng.normal(280, 60, size=k_obvious).clip(150, 450)
+    dist = rng.normal(5, 1.5, size=k_obvious).clip(2, 10)
+    samples.append(np.column_stack([hr, steps, cal, dist]))
 
     # Zero/dropout readings
-    remaining = n - 3 * k
-    zeros = np.zeros((remaining, 4))
-    # Add slight noise to some
-    zeros[:remaining // 2, 0] = rng.normal(5, 2, size=remaining // 2).clip(0, 10)
+    zeros = np.zeros((k_obvious, 4))
+    zeros[:k_obvious // 2, 0] = rng.normal(3, 2, size=k_obvious // 2).clip(0, 8)
     samples.append(zeros)
+
+    # --- Subtle / borderline anomalies (60% of total) ---
+    # These intentionally overlap with normal ranges, making the problem harder
+
+    k_subtle = n // 5
+
+    # Mildly elevated HR at rest (HR 105-140, but low activity)
+    # Key anomaly signal: HR is elevated but steps/activity are low
+    hr = rng.normal(120, 12, size=k_subtle).clip(105, 145)
+    steps = rng.normal(15, 10, size=k_subtle).clip(0, 40)
+    cal = rng.normal(12, 5, size=k_subtle).clip(1, 25)
+    dist = rng.normal(0.03, 0.02, size=k_subtle).clip(0, 0.1)
+    samples.append(np.column_stack([hr, steps, cal, dist]))
+
+    # Mildly low HR during activity (HR 42-58, but moderate steps)
+    # Key anomaly signal: HR is too low for the activity level
+    hr = rng.normal(48, 5, size=k_subtle).clip(38, 60)
+    steps = rng.normal(120, 40, size=k_subtle).clip(50, 220)
+    cal = rng.normal(35, 10, size=k_subtle).clip(15, 60)
+    dist = rng.normal(0.35, 0.1, size=k_subtle).clip(0.1, 0.7)
+    samples.append(np.column_stack([hr, steps, cal, dist]))
+
+    # Erratic readings — plausible values individually but inconsistent
+    # (e.g., very high calories with low steps and moderate HR)
+    hr = rng.normal(85, 15, size=k_subtle).clip(60, 115)
+    steps = rng.normal(10, 8, size=k_subtle).clip(0, 30)
+    cal = rng.normal(120, 30, size=k_subtle).clip(70, 200)
+    dist = rng.normal(0.02, 0.02, size=k_subtle).clip(0, 0.08)
+    samples.append(np.column_stack([hr, steps, cal, dist]))
+
+    # Fill remaining with mixed subtle anomalies
+    n_remaining = n - 4 * k_obvious - 3 * k_subtle
+    if n_remaining > 0:
+        # Moderate tachycardia (HR 130-160, low activity)
+        hr = rng.normal(142, 10, size=n_remaining).clip(125, 165)
+        steps = rng.normal(25, 15, size=n_remaining).clip(0, 70)
+        cal = rng.normal(15, 6, size=n_remaining).clip(1, 35)
+        dist = rng.normal(0.05, 0.03, size=n_remaining).clip(0, 0.15)
+        samples.append(np.column_stack([hr, steps, cal, dist]))
 
     X = np.concatenate(samples, axis=0).astype(np.float32)
     rng.shuffle(X)
@@ -708,25 +807,29 @@ def test_supervised_anomaly_models(verbose=True):
     X_train_s = scaler.fit_transform(X_train)
     X_test_s = scaler.transform(X_test)
 
-    # Define supervised models
+    # Define supervised models (with regularization to prevent overfitting)
     models = {
         "RandomForest": RandomForestClassifier(
-            n_estimators=200, max_depth=10, class_weight='balanced',
+            n_estimators=100, max_depth=5, min_samples_leaf=5,
+            max_features='sqrt', class_weight='balanced',
             random_state=42, n_jobs=-1
         ),
         "GradientBoosting": GradientBoostingClassifier(
-            n_estimators=200, max_depth=5, learning_rate=0.1,
+            n_estimators=100, max_depth=4, learning_rate=0.1,
+            min_samples_leaf=5, max_features='sqrt',
             random_state=42
         ),
         "ExtraTrees": ExtraTreesClassifier(
-            n_estimators=200, max_depth=10, class_weight='balanced',
+            n_estimators=100, max_depth=5, min_samples_leaf=5,
+            max_features='sqrt', class_weight='balanced',
             random_state=42, n_jobs=-1
         ),
     }
 
     if HAS_XGBOOST:
         models["XGBoost"] = XGBClassifier(
-            n_estimators=200, max_depth=6, learning_rate=0.1,
+            n_estimators=100, max_depth=4, learning_rate=0.1,
+            min_child_weight=5, reg_alpha=0.1, reg_lambda=1.0,
             scale_pos_weight=len(y_train[y_train == 0]) / max(len(y_train[y_train == 1]), 1),
             random_state=42, use_label_encoder=False, eval_metric='logloss',
             verbosity=0
@@ -766,11 +869,18 @@ def test_supervised_anomaly_models(verbose=True):
         y_proba = model.predict_proba(X_test_s)[:, 1]
         elapsed_ms = (time.perf_counter() - start) * 1000
 
+        # Test metrics
         prec = precision_score(y_test, y_pred)
         rec = recall_score(y_test, y_pred)
         f1_val = f1_score(y_test, y_pred)
         auc = roc_auc_score(y_test, y_proba)
         cm = confusion_matrix(y_test, y_pred).tolist()
+
+        # Train metrics (for overfitting detection)
+        y_train_pred = model.predict(X_train_s)
+        train_f1 = f1_score(y_train, y_train_pred)
+        overfit_gap = round(train_f1 - f1_val, 4)
+        is_overfitting = overfit_gap > 0.05
 
         results[name] = {
             "precision": round(prec, 4),
@@ -780,6 +890,9 @@ def test_supervised_anomaly_models(verbose=True):
             "confusion_matrix": cm,
             "training_time_ms": round(elapsed_ms, 2),
             "model_type": "supervised",
+            "train_f1": round(train_f1, 4),
+            "overfit_gap": overfit_gap,
+            "overfitting_warning": is_overfitting,
         }
 
         if f1_val > best_f1:
@@ -790,6 +903,9 @@ def test_supervised_anomaly_models(verbose=True):
         if verbose:
             print(f"\n  📈 {name} (supervised):")
             print(f"     Prec={prec:.4f}  Rec={rec:.4f}  F1={f1_val:.4f}  AUC={auc:.4f}")
+            print(f"     Train F1={train_f1:.4f}  Test F1={f1_val:.4f}  Gap={overfit_gap:.4f}")
+            if is_overfitting:
+                print(f"     ⚠️  OVERFITTING WARNING: train-test F1 gap = {overfit_gap:.4f} > 0.05")
             print(f"     Time: {elapsed_ms:.1f}ms  CM: {cm}")
 
     results["_best_model"] = best_model_name
@@ -864,22 +980,26 @@ def test_better_activity_classifiers(verbose=True):
 
     models = {
         "RandomForest": RandomForestClassifier(
-            n_estimators=300, max_depth=15, class_weight='balanced',
+            n_estimators=150, max_depth=8, min_samples_leaf=5,
+            max_features='sqrt', class_weight='balanced',
             random_state=42, n_jobs=-1
         ),
         "GradientBoosting": GradientBoostingClassifier(
-            n_estimators=200, max_depth=6, learning_rate=0.1,
+            n_estimators=150, max_depth=5, learning_rate=0.1,
+            min_samples_leaf=5, max_features='sqrt',
             random_state=42
         ),
         "ExtraTrees": ExtraTreesClassifier(
-            n_estimators=300, max_depth=15, class_weight='balanced',
+            n_estimators=150, max_depth=8, min_samples_leaf=5,
+            max_features='sqrt', class_weight='balanced',
             random_state=42, n_jobs=-1
         ),
     }
 
     if HAS_XGBOOST:
         models["XGBoost"] = XGBClassifier(
-            n_estimators=200, max_depth=6, learning_rate=0.1,
+            n_estimators=150, max_depth=5, learning_rate=0.1,
+            min_child_weight=5, reg_alpha=0.1, reg_lambda=1.0,
             random_state=42, use_label_encoder=False, eval_metric='mlogloss',
             verbosity=0
         )

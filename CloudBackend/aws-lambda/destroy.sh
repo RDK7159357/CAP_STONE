@@ -2,7 +2,7 @@
 
 # AWS Lambda Teardown Script for Health Monitoring System
 # Destroys ALL resources created by deploy.sh
-# Updated Feb 2026: Handles Random Forest model, duplicate API Gateways
+# Updated Mar 2026: Handles GradientBoosting + all model backups
 
 set -e
 
@@ -273,7 +273,7 @@ echo "Resources removed:"
 echo "  • Lambda: $FUNCTION_NAME, $INFERENCE_FUNCTION_NAME, $NOTIFY_FUNCTION_NAME, $READ_FUNCTION_NAME"
 echo "  • DynamoDB: $TABLE_NAME, $PUSH_TOKEN_TABLE"
 echo "  • API Gateway: $API_NAME (all instances)"
-echo "  • S3: $MODEL_BUCKET (including randomforest/ and isolation_forest/ models)"
+echo "  • S3: $MODEL_BUCKET (gradientboosting/, randomforest/, xgboost/, extratrees/, isolation_forest/, activity/)"
 echo "  • SNS: $SNS_TOPIC_NAME"
 echo "  • ECR: $ECR_REPO_NAME"
 echo "  • IAM Role: $ROLE_NAME"

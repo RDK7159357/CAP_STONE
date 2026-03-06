@@ -11,6 +11,7 @@ export interface HealthMetric {
   distance: number;
   isAnomaly: boolean;
   anomalyScore: number;
+  activityState?: 'sleep' | 'rest' | 'walk' | 'run' | 'exercise' | 'other' | null;
 }
 
 export interface HealthDataState {

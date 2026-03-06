@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # AWS Lambda Deployment Script for Health Monitoring System
-# Updated Feb 2026: Uses Random Forest model (F1=1.00) instead of Isolation Forest
+# Updated Mar 2026: Uses Gradient Boosting model (F1=0.995) instead of Random Forest
 
 set -e
 
@@ -26,17 +26,28 @@ PUSH_TOKEN_TABLE="HealthPushTokens"
 REGION="ap-south-2"
 MODEL_BUCKET="health-ml-models"
 
-# Best model: RandomForest (F1=1.00, AUC=1.00) — updated Feb 2026
-MODEL_KEY="randomforest/model.pkl"
-SCALER_KEY="randomforest/scaler.pkl"
-MODEL_LOCAL_PATH="../../MLPipeline/models/saved_models/best_anomaly_randomforest.pkl"
+# ═══ Anomaly Detection Models ═══
+# Best: GradientBoosting (F1=0.995, AUC=1.00) — updated Mar 2026
+MODEL_KEY="gradientboosting/model.pkl"
+SCALER_KEY="gradientboosting/scaler.pkl"
+MODEL_LOCAL_PATH="../../MLPipeline/models/saved_models/best_anomaly_gradientboosting.pkl"
 SCALER_LOCAL_PATH="../../MLPipeline/models/saved_models/best_anomaly_scaler.pkl"
 
-# Fallback: Isolation Forest (legacy)
+# Fallback anomaly models
 LEGACY_MODEL_LOCAL_PATH="../../MLPipeline/models/saved_models/isolation_forest.pkl"
 LEGACY_SCALER_LOCAL_PATH="../../MLPipeline/models/saved_models/scaler.pkl"
 LEGACY_MODEL_KEY="isolation_forest/model.pkl"
 LEGACY_SCALER_KEY="isolation_forest/scaler.pkl"
+RF_MODEL_LOCAL="../../MLPipeline/models/saved_models/best_anomaly_randomforest.pkl"
+ET_MODEL_LOCAL="../../MLPipeline/models/saved_models/best_anomaly_extratrees.pkl"
+XGB_ANOMALY_LOCAL="../../MLPipeline/models/saved_models/best_anomaly_xgboost.pkl"
+
+# ═══ Activity Classification Model ═══
+# Best: XGBoost (Accuracy=0.858) — updated Mar 2026
+ACTIVITY_MODEL_LOCAL="../../MLPipeline/models/saved_models/best_activity_xgboost.pkl"
+ACTIVITY_SCALER_LOCAL="../../MLPipeline/models/saved_models/best_anomaly_scaler.pkl"
+ACTIVITY_MODEL_KEY="activity/xgboost_model.pkl"
+ACTIVITY_SCALER_KEY="activity/scaler.pkl"
 
 SNS_TOPIC_NAME="health-alerts"
 SMS_SUBSCRIPTION_NUMBER="+917702062828"
@@ -154,23 +165,54 @@ echo ""
 echo "🧠 Step 5: Uploading ML models to S3..."
 aws s3 mb s3://$MODEL_BUCKET --region $REGION 2>/dev/null || echo "  ✓ Bucket already exists"
 
-# Upload Random Forest (best model)
+# ─── 5a: Anomaly Detection Models ───
+echo "  📦 Anomaly Detection Models:"
+
+# GradientBoosting (best, F1=0.995)
 if [[ -f "$MODEL_LOCAL_PATH" && -f "$SCALER_LOCAL_PATH" ]]; then
-    echo "  Uploading Random Forest model (F1=1.00)..."
+    echo "    Uploading GradientBoosting (F1=0.995, best)..."
     aws s3 cp "$MODEL_LOCAL_PATH" "s3://$MODEL_BUCKET/$MODEL_KEY" --region "$REGION" || true
     aws s3 cp "$SCALER_LOCAL_PATH" "s3://$MODEL_BUCKET/$SCALER_KEY" --region "$REGION" || true
-    echo "  ✓ Random Forest model uploaded to s3://$MODEL_BUCKET/randomforest/"
+    echo "    ✓ s3://$MODEL_BUCKET/gradientboosting/"
 else
-    echo "  ⚠️  Random Forest model not found at:"
-    echo "     $MODEL_LOCAL_PATH"
-    echo "     Run: cd ../../MLPipeline && source venv/bin/activate && python src/tests/comprehensive_ml_test.py"
+    echo "    ⚠️  GradientBoosting model not found. Run: cd ../../MLPipeline && python src/tests/comprehensive_ml_test.py"
 fi
 
-# Also upload legacy Isolation Forest if available
+# RandomForest (F1=0.983)
+if [[ -f "$RF_MODEL_LOCAL" ]]; then
+    echo "    Uploading RandomForest (F1=0.983)..."
+    aws s3 cp "$RF_MODEL_LOCAL" "s3://$MODEL_BUCKET/randomforest/model.pkl" --region "$REGION" || true
+fi
+
+# XGBoost (F1=0.989)
+if [[ -f "$XGB_ANOMALY_LOCAL" ]]; then
+    echo "    Uploading XGBoost (F1=0.989)..."
+    aws s3 cp "$XGB_ANOMALY_LOCAL" "s3://$MODEL_BUCKET/xgboost_anomaly/model.pkl" --region "$REGION" || true
+fi
+
+# ExtraTrees (F1=0.966)
+if [[ -f "$ET_MODEL_LOCAL" ]]; then
+    echo "    Uploading ExtraTrees (F1=0.966)..."
+    aws s3 cp "$ET_MODEL_LOCAL" "s3://$MODEL_BUCKET/extratrees_anomaly/model.pkl" --region "$REGION" || true
+fi
+
+# Isolation Forest (fallback, unsupervised)
 if [[ -f "$LEGACY_MODEL_LOCAL_PATH" && -f "$LEGACY_SCALER_LOCAL_PATH" ]]; then
-    echo "  Uploading legacy Isolation Forest model (backup)..."
+    echo "    Uploading IsolationForest (fallback, unsupervised)..."
     aws s3 cp "$LEGACY_MODEL_LOCAL_PATH" "s3://$MODEL_BUCKET/$LEGACY_MODEL_KEY" --region "$REGION" || true
     aws s3 cp "$LEGACY_SCALER_LOCAL_PATH" "s3://$MODEL_BUCKET/$LEGACY_SCALER_KEY" --region "$REGION" || true
+fi
+
+# ─── 5b: Activity Classification Model ───
+echo "  📦 Activity Classification Models:"
+
+if [[ -f "$ACTIVITY_MODEL_LOCAL" ]]; then
+    echo "    Uploading XGBoost Activity Classifier (Acc=0.858, best)..."
+    aws s3 cp "$ACTIVITY_MODEL_LOCAL" "s3://$MODEL_BUCKET/$ACTIVITY_MODEL_KEY" --region "$REGION" || true
+    aws s3 cp "$ACTIVITY_SCALER_LOCAL" "s3://$MODEL_BUCKET/$ACTIVITY_SCALER_KEY" --region "$REGION" || true
+    echo "    ✓ s3://$MODEL_BUCKET/activity/"
+else
+    echo "    ⚠️  Activity model not found. Run: cd ../../MLPipeline && python src/tests/comprehensive_ml_test.py"
 fi
 
 echo "  📁 S3 model inventory:"
@@ -287,7 +329,7 @@ if [[ -z "$API_ID" || "$API_ID" == "None" ]]; then
     echo "  Creating new API Gateway..."
     API_ID=$(aws apigateway create-rest-api \
         --name $API_NAME \
-        --description "Health Monitoring System API (Random Forest ML)" \
+        --description "Health Monitoring System API (Gradient Boosting ML)" \
         --region $REGION \
         --query 'id' \
         --output text)
@@ -496,7 +538,7 @@ aws lambda update-function-configuration \
     --environment "{\"Variables\":{\"TABLE_NAME\":\"$TABLE_NAME\",\"REGION\":\"$REGION\",\"API_KEY\":\"$API_KEY_VALUE\"}}" \
     --region $REGION > /dev/null
 
-# Update inference Lambda to use Random Forest model
+# Update inference Lambda to use Gradient Boosting model
 sleep 5
 aws lambda update-function-configuration \
     --function-name $INFERENCE_FUNCTION_NAME \
@@ -548,9 +590,10 @@ echo "   $INFERENCE_FUNCTION_NAME (Container, 1024MB)"
 echo "   $NOTIFY_FUNCTION_NAME (Zip, 256MB)"
 echo "   $READ_FUNCTION_NAME (Zip, 256MB)"
 echo ""
-echo "🧠 ML Model: Random Forest (F1=1.00)"
-echo "   S3: s3://$MODEL_BUCKET/$MODEL_KEY"
-echo "   Scaler: s3://$MODEL_BUCKET/$SCALER_KEY"
+echo "🧠 ML Models:"
+echo "   Anomaly:  GradientBoosting (F1=0.995) → s3://$MODEL_BUCKET/gradientboosting/"
+echo "   Activity: XGBoost (Acc=0.858) → s3://$MODEL_BUCKET/activity/"
+echo "   Backups:  RandomForest, ExtraTrees, XGBoost, IsolationForest"
 echo ""
 echo "📊 DynamoDB: $TABLE_NAME, $PUSH_TOKEN_TABLE"
 echo "📣 SNS: $SNS_TOPIC_ARN"

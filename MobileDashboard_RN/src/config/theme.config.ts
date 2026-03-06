@@ -5,14 +5,15 @@
 export const Colors = {
   // Primary colors
   primary: '#007AFF',
-  
+
   // Metric colors
   heartRate: '#E74C3C',
   steps: '#3498DB',
   calories: '#F39C12',
   distance: '#2ECC71',
   anomaly: '#E67E22',
-  
+  activity: '#8E44AD',
+
   // Neutral colors
   white: '#FFFFFF',
   black: '#000000',
@@ -25,7 +26,7 @@ export const Colors = {
   gray700: '#616161',
   gray800: '#424242',
   gray900: '#212121',
-  
+
   // Semantic colors
   error: '#FF3B30',
   warning: '#FF9500',

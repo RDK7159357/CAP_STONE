@@ -1,13 +1,13 @@
 """
-AWS Lambda handler for Random Forest anomaly detection.
-Loads trained scikit-learn Random Forest model and scores incoming health metrics.
+AWS Lambda handler for anomaly detection.
+Loads trained scikit-learn model and scores incoming health metrics.
 
-Model: RandomForestClassifier (F1=1.00, AUC-ROC=1.00)
-  - 200 estimators, max_depth=10, class_weight='balanced'
+Model: GradientBoostingClassifier (F1=0.995, AUC-ROC=1.00)
+  - 100 estimators, max_depth=4, min_samples_leaf=5, max_features='sqrt'
   - Trained on 4 features: heartRate, steps, calories, distance
   - StandardScaler normalization applied before prediction
 
-Previous model: Isolation Forest (F1=0.89) — replaced Feb 2026
+Previous model: Random Forest (F1=0.983) — replaced Mar 2026
 """
 import json
 import boto3
@@ -30,8 +30,8 @@ _scaler = None
 
 # Model configuration
 MODEL_BUCKET = os.environ.get('MODEL_BUCKET', 'health-ml-models')
-MODEL_KEY = os.environ.get('MODEL_KEY', 'randomforest/model.pkl')
-SCALER_KEY = os.environ.get('SCALER_KEY', 'randomforest/scaler.pkl')
+MODEL_KEY = os.environ.get('MODEL_KEY', 'gradientboosting/model.pkl')
+SCALER_KEY = os.environ.get('SCALER_KEY', 'gradientboosting/scaler.pkl')
 LOCAL_MODEL_PATH = '/tmp/model.pkl'
 LOCAL_SCALER_PATH = '/tmp/scaler.pkl'
 
@@ -44,12 +44,12 @@ CORS_HEADERS = {
 
 
 class AnomalyDetector:
-    """Encapsulates Random Forest model and inference logic for health anomaly detection.
+    """Encapsulates ML model and inference logic for health anomaly detection.
     
-    Best Model: RandomForestClassifier
-      - F1-Score: 1.0000 (5-fold CV: 1.0000 ± 0.0000)
+    Best Model: GradientBoostingClassifier
+      - F1-Score: 0.9950 (5-fold CV: 0.9950 ± 0.0016)
       - AUC-ROC: 1.0000
-      - Precision: 1.0000, Recall: 1.0000
+      - Precision: 0.9934, Recall: 0.9967
     
     Also supports legacy Isolation Forest models for backward compatibility.
     """
@@ -178,7 +178,7 @@ def lambda_handler(event, context):
     """
     Main Lambda handler for anomaly detection scoring.
     
-    Model: RandomForestClassifier (F1=1.00, 5-fold CV)
+    Model: GradientBoostingClassifier (F1=0.995, 5-fold CV)
     Features: heart_rate, steps, calories, distance
     Preprocessing: StandardScaler normalization
     
@@ -205,12 +205,12 @@ def lambda_handler(event, context):
                     "metric_id": "...",
                     "is_anomaly": false,
                     "cloud_score": 0.02,
-                    "model_type": "RandomForestClassifier"
+                    "model_type": "GradientBoostingClassifier"
                 },
                 ...
             ],
-            "timestamp": "2026-02-23T10:30:45Z",
-            "model_type": "RandomForestClassifier"
+            "timestamp": "2026-03-06T10:30:45Z",
+            "model_type": "GradientBoostingClassifier"
         }
     }
     """

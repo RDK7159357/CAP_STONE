@@ -81,18 +81,32 @@ export const HistoryScreen = () => {
           </Text>
         </View>
       </View>
-      {item.isAnomaly && (
-        <View
-          style={[
-            styles.anomalyBadge,
-            { backgroundColor: `${Colors.anomaly}20` },
-          ]}
-        >
-          <Text style={{ color: Colors.anomaly, fontSize: 12, fontWeight: '600' }}>
-            Anomaly
-          </Text>
-        </View>
-      )}
+      <View style={styles.badgeRow}>
+        {item.activityState && (
+          <View
+            style={[
+              styles.activityBadge,
+              { backgroundColor: `${Colors.activity}15` },
+            ]}
+          >
+            <Text style={{ color: Colors.activity, fontSize: 12, fontWeight: '600' }}>
+              {item.activityState.charAt(0).toUpperCase() + item.activityState.slice(1)}
+            </Text>
+          </View>
+        )}
+        {item.isAnomaly && (
+          <View
+            style={[
+              styles.anomalyBadge,
+              { backgroundColor: `${Colors.anomaly}20` },
+            ]}
+          >
+            <Text style={{ color: Colors.anomaly, fontSize: 12, fontWeight: '600' }}>
+              Anomaly
+            </Text>
+          </View>
+        )}
+      </View>
     </View>
   );
 
@@ -217,6 +231,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.xs,
     borderRadius: BorderRadius.lg,
+  },
+  activityBadge: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs,
+    borderRadius: BorderRadius.lg,
+    marginRight: Spacing.sm,
+  },
+  badgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   emptyContainer: {
     flex: 1,

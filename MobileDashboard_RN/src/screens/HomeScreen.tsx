@@ -17,6 +17,7 @@ import { useHealthStore } from '@/store/health.store';
 import {
   MetricCard,
   AnomalyAlert,
+  ActivityCard,
   MetricCardSkeleton,
   ErrorFallback,
 } from '@/components';
@@ -121,6 +122,14 @@ export const HomeScreen = () => {
                 </View>
               )}
             </View>
+          )}
+
+          {/* Activity Classification */}
+          {todayMetrics?.activityState && (
+            <ActivityCard
+              activityState={todayMetrics.activityState}
+              timestamp={todayMetrics.timestamp}
+            />
           )}
 
           {/* Anomalies Section */}

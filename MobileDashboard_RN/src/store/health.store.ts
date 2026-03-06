@@ -17,15 +17,19 @@ function getMockHealthMetrics(): HealthMetric[] {
   for (let i = 0; i < 10; i++) {
     const timestamp = new Date(now.getTime() - i * 60 * 60 * 1000);
     const isAnomaly = Math.random() > 0.8;
+    const hr = Math.floor(Math.random() * (100 - 60) + 60);
+    const activities = ['sleep', 'rest', 'walk', 'run', 'exercise', 'other'] as const;
+    const activityState = hr < 55 ? 'sleep' : hr < 75 ? 'rest' : hr < 90 ? 'walk' : activities[Math.floor(Math.random() * 3) + 3];
     metrics.push({
       id: `mock-${i}`,
-      heartRate: Math.floor(Math.random() * (100 - 60) + 60),
+      heartRate: hr,
       steps: Math.floor(Math.random() * 5000),
       calories: Math.floor(Math.random() * (2000 - 1500) + 1500),
       distance: parseFloat((Math.random() * 5).toFixed(2)),
       timestamp: timestamp.toISOString(),
       isAnomaly,
       anomalyScore: isAnomaly ? parseFloat((Math.random() * 1).toFixed(2)) : 0,
+      activityState,
     });
   }
 
