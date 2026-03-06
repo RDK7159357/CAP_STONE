@@ -54,7 +54,7 @@ class HealthMonitoringService : LifecycleService() {
         private const val SAVE_INTERVAL_MS = 30_000L // 30 seconds
 
         // User ID - In production, get from authentication
-        private const val USER_ID = "user_001"
+        private const val USER_ID = "demo-user-dhanush"
 
         // Device ID - In production, get unique device identifier
         private val DEVICE_ID = "wear_${android.os.Build.MODEL}"

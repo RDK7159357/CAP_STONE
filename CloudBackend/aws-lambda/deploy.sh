@@ -241,7 +241,7 @@ else
         --zip-file fileb://function.zip \
         --timeout 30 \
         --memory-size 512 \
-        --environment "{\"Variables\":{\"TABLE_NAME\":\"$TABLE_NAME\",\"REGION\":\"$REGION\"}}" \
+        --environment "{\"Variables\":{\"TABLE_NAME\":\"$TABLE_NAME\",\"PUSH_TOKEN_TABLE\":\"$PUSH_TOKEN_TABLE\",\"REGION\":\"$REGION\",\"CLOUD_INFERENCE_FUNCTION\":\"$INFERENCE_FUNCTION_NAME\"}}" \
         --region $REGION > /dev/null
 fi
 
@@ -419,6 +419,46 @@ setup_method() {
         2>/dev/null || true
 }
 
+# Helper: add CORS OPTIONS mock integration for a resource
+setup_cors_options() {
+    local resource_id=$1
+
+    aws apigateway put-method \
+        --rest-api-id $API_ID \
+        --resource-id $resource_id \
+        --http-method OPTIONS \
+        --authorization-type NONE \
+        --region $REGION \
+        2>/dev/null || true
+
+    aws apigateway put-integration \
+        --rest-api-id $API_ID \
+        --resource-id $resource_id \
+        --http-method OPTIONS \
+        --type MOCK \
+        --request-templates '{"application/json": "{\"statusCode\": 200}"}' \
+        --region $REGION \
+        2>/dev/null || true
+
+    aws apigateway put-method-response \
+        --rest-api-id $API_ID \
+        --resource-id $resource_id \
+        --http-method OPTIONS \
+        --status-code 200 \
+        --response-parameters '{"method.response.header.Access-Control-Allow-Headers":true,"method.response.header.Access-Control-Allow-Methods":true,"method.response.header.Access-Control-Allow-Origin":true}' \
+        --region $REGION \
+        2>/dev/null || true
+
+    aws apigateway put-integration-response \
+        --rest-api-id $API_ID \
+        --resource-id $resource_id \
+        --http-method OPTIONS \
+        --status-code 200 \
+        --response-parameters '{"method.response.header.Access-Control-Allow-Headers":"'\''Content-Type,X-API-Key'\''","method.response.header.Access-Control-Allow-Methods":"'\''GET,POST,OPTIONS'\''","method.response.header.Access-Control-Allow-Origin":"'\''*'\''"}' \
+        --region $REGION \
+        2>/dev/null || true
+}
+
 # Setup all routes
 echo "  Setting up API routes..."
 setup_method "$INGEST_ID" "POST" "$FUNCTION_NAME"
@@ -428,6 +468,12 @@ setup_method "$HISTORY_ID" "GET" "$READ_FUNCTION_NAME"
 setup_method "$HEALTH_ID" "GET" "$READ_FUNCTION_NAME"
 setup_method "$METRICS_ID" "GET" "$READ_FUNCTION_NAME"
 setup_method "$REGISTER_ID" "POST" "$FUNCTION_NAME"
+
+# Enable CORS preflight (OPTIONS) on all routes
+echo "  Setting up CORS OPTIONS..."
+for rid in "$INGEST_ID" "$SYNC_ID" "$HISTORY_ID" "$HEALTH_ID" "$METRICS_ID" "$REGISTER_ID"; do
+    setup_cors_options "$rid"
+done
 
 # Deploy API
 aws apigateway create-deployment \
@@ -594,6 +640,9 @@ echo "🧠 ML Models:"
 echo "   Anomaly:  GradientBoosting (F1=0.995) → s3://$MODEL_BUCKET/gradientboosting/"
 echo "   Activity: XGBoost (Acc=0.858) → s3://$MODEL_BUCKET/activity/"
 echo "   Backups:  RandomForest, ExtraTrees, XGBoost, IsolationForest"
+echo ""
+echo "📝 Features:"
+echo "   Anomaly Explainability: anomalyReasons + featureContributions in responses"
 echo ""
 echo "📊 DynamoDB: $TABLE_NAME, $PUSH_TOKEN_TABLE"
 echo "📣 SNS: $SNS_TOPIC_ARN"

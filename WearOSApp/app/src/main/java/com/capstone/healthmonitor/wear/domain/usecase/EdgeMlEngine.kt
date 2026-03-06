@@ -57,7 +57,8 @@ class EdgeMlEngine @Inject constructor(
         val isAnomaly: Boolean,
         val score: Float,
         val modelVersion: String = DEFAULT_MODEL_VERSION,
-        val usedTflite: Boolean
+        val usedTflite: Boolean,
+        val reasons: List<String> = emptyList()
     )
 
     fun classifyActivity(metric: HealthMetric): ActivityResult {
@@ -121,22 +122,49 @@ class EdgeMlEngine @Inject constructor(
                 // Compute reconstruction error (MSE) for the last timestep
                 val reconstructed = output[0][9]  // Last timestep reconstruction
                 val original = floatArrayOf(hr, steps, calories, distance)
-                val mse = reconstructed.zip(original).map { (r, o) -> 
-                    val diff = r - o
-                    diff * diff 
-                }.average().toFloat()
+                val featureNames = arrayOf("Heart rate", "Steps", "Calories", "Distance")
+                val featureUnits = arrayOf("BPM", "steps", "kcal", "km")
+                val perFeatureError = FloatArray(4)
+                var totalMse = 0f
+                for (i in 0 until 4) {
+                    val diff = reconstructed[i] - original[i]
+                    perFeatureError[i] = diff * diff
+                    totalMse += perFeatureError[i]
+                }
+                totalMse /= 4f
                 
                 // Normalize MSE to 0-1 score (higher MSE = more anomalous)
                 // Tested performance (Feb 2026):
                 //   Normal MSE: ~19.56, Tachycardia MSE: ~91.89, Extreme MSE: ~3973
                 //   Bradycardia MSE: ~6.63 (LOWER than normal — model cannot detect this)
                 // Using 100 as divisor maps normal→0.2, tachycardia→0.9, extreme→1.0
-                val score = (mse / 100f).coerceIn(0f, 1f)
+                val score = (totalMse / 100f).coerceIn(0f, 1f)
+                val isAnomaly = score >= 0.5f
+
+                // Generate per-feature reasons for anomalies
+                val reasons = mutableListOf<String>()
+                if (isAnomaly) {
+                    // Find which features contributed most to reconstruction error
+                    val totalError = perFeatureError.sum().coerceAtLeast(0.001f)
+                    for (i in 0 until 4) {
+                        val contribution = perFeatureError[i] / totalError
+                        if (contribution >= 0.25f) { // Feature contributes ≥25% of error
+                            reasons.add(
+                                "${featureNames[i]}: ${original[i].toInt()} ${featureUnits[i]} " +
+                                "deviates from expected pattern (${(contribution * 100).toInt()}% of anomaly signal)"
+                            )
+                        }
+                    }
+                    if (reasons.isEmpty()) {
+                        reasons.add("Unusual combination of health metrics detected by on-device ML")
+                    }
+                }
                 
                 AnomalyResult(
-                    isAnomaly = score >= 0.5f,
+                    isAnomaly = isAnomaly,
                     score = score,
-                    usedTflite = true
+                    usedTflite = true,
+                    reasons = reasons
                 )
             } catch (t: Throwable) {
                 Log.w(TAG, "Anomaly TFLite inference failed, using rule fallback", t)
@@ -150,7 +178,8 @@ class EdgeMlEngine @Inject constructor(
     private fun ruleFallback(metric: HealthMetric, recent: List<HealthMetric>): AnomalyResult {
         val isSuspicious = ruleDetector.isSuspicious(metric, recent)
         val score = ruleDetector.getLocalScore(metric, recent)
-        return AnomalyResult(isSuspicious, score, modelVersion = "rule-fallback", usedTflite = false)
+        val reasons = ruleDetector.getAnomalyReasons(metric, recent)
+        return AnomalyResult(isSuspicious, score, modelVersion = "rule-fallback", usedTflite = false, reasons = reasons)
     }
 
     private fun heuristicActivity(hr: Float, steps: Float): ActivityResult {

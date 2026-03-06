@@ -93,7 +93,8 @@ class HealthRepository @Inject constructor(
                     localAnomalyScore = ruleScore,
                     edgeAnomalyScore = anomalyResult.score,
                     activityState = activityResult.state,
-                    modelVersion = anomalyResult.modelVersion
+                    modelVersion = anomalyResult.modelVersion,
+                    anomalyReasons = anomalyResult.reasons.ifEmpty { null }
                 )
             }
 

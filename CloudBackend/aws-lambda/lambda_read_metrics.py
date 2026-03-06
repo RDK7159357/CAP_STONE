@@ -115,6 +115,8 @@ def handle_get_metrics(query_params):
                 'isAnomaly': item.get('isAnomaly', item.get('anomalyDetected', False)),
                 'anomalyScore': float(item.get('anomalyScore', item.get('cloudAnomalyScore', item.get('edgeAnomalyScore', 0)))),
                 'activityState': item.get('activityState', None),
+                'anomalyReasons': item.get('anomalyReasons', []),
+                'anomalySource': item.get('anomalySource', None),
             }
             metrics.append(metric)
 
@@ -188,13 +190,16 @@ def handle_get_history(query_params):
             key_condition += ' AND #ts <= :end'
             expression_values[':end'] = end_timestamp
 
-        response = table.query(
-            KeyConditionExpression=key_condition,
-            ExpressionAttributeNames={'#ts': 'timestamp'} if start_timestamp or end_timestamp else None,
-            ExpressionAttributeValues=expression_values,
-            Limit=limit,
-            ScanIndexForward=False  # Sort by timestamp descending
-        )
+        query_kwargs = {
+            'KeyConditionExpression': key_condition,
+            'ExpressionAttributeValues': expression_values,
+            'Limit': limit,
+            'ScanIndexForward': False  # Sort by timestamp descending
+        }
+        if start_timestamp or end_timestamp:
+            query_kwargs['ExpressionAttributeNames'] = {'#ts': 'timestamp'}
+
+        response = table.query(**query_kwargs)
 
         items = response.get('Items', [])
         metrics = []
@@ -214,6 +219,8 @@ def handle_get_history(query_params):
                 'isAnomaly': item.get('isAnomaly', item.get('anomalyDetected', False)),
                 'anomalyScore': float(item.get('anomalyScore', item.get('cloudAnomalyScore', item.get('edgeAnomalyScore', 0)))),
                 'activityState': item.get('activityState', None),
+                'anomalyReasons': item.get('anomalyReasons', []),
+                'anomalySource': item.get('anomalySource', None),
             }
             metrics.append(metric)
 

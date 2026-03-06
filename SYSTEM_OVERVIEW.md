@@ -79,18 +79,19 @@
 │  │ ├─ steps             │    │                                 │  │
 │  │ ├─ calories          │    │ Anomaly Message Format:         │  │
 │  │ ├─ edgeActivity      │    │ {                               │  │
-│  │ ├─ edgeAnomalyScore  │    │   "userId": "user_001",         │  │
+│  │ ├─ edgeAnomalyScore  │    │   "userId": "demo-user-dhanush",  │  │
 │  │ ├─ cloudAnomalyScore │    │   "anomalyType": "tachycardia", │  │
-│  │ └─ synced            │    │   "value": 145,                 │  │
-│  │                      │    │   "edgeScore": 0.8,             │  │
-│  │ HealthPushTokens     │    │   "cloudScore": 0.9,            │  │
-│  │ ├─ userId (PK)       │    │   "severity": "high",           │  │
-│  │ ├─ deviceId          │    │   "timestamp": "...",           │  │
-│  │ └─ expoPushToken     │    │   "message": "HR abnormal"      │  │
-│  │                      │    │ }                               │  │
-│  │ S3 Bucket            │    │                                 │  │
-│  │ (health-ml-models/)  │    │                                 │  │
-│  │ ├─ isolation_forest/ │    │                                 │  │
+│  │ ├─ anomalyReasons    │    │   "value": 145,                 │  │
+│  │ └─ synced            │    │   "edgeScore": 0.8,             │  │
+│  │                      │    │   "cloudScore": 0.9,            │  │
+│  │ HealthPushTokens     │    │   "severity": "high",           │  │
+│  │ ├─ userId (PK)       │    │   "timestamp": "...",           │  │
+│  │ ├─ deviceId          │    │   "message": "HR abnormal",     │  │
+│  │ └─ expoPushToken     │    │   "anomalyReasons": [           │  │
+│  │                      │    │     "Resting heart rate: 145.." │  │
+│  │ S3 Bucket            │    │   ]                             │  │
+│  │ (health-ml-models/)  │    │ }                               │  │
+│  │ ├─ gradientboosting/ │    │                                 │  │
 │  │ │  model.pkl (~5MB)  │    │                                 │  │
 │  │ └─ scaler.pkl (10KB) │    │                                 │  │
 │  └──────────────────────┘    └─────────────────────────────────┘  │
@@ -168,7 +169,7 @@ WearOS Smartwatch (24/7 Background Service)
         ├─ Auth: X-API-Key header
         ├─ Endpoint: /health-data/ingest
         ├─ Body: {
-        │    userId: "user_001",
+        │    userId: "demo-user-dhanush",
         │    timestamp: "2026-02-18T09:30:45Z",
         │    metrics: {
         │      heartRate: 145,
@@ -188,7 +189,7 @@ Lambda: HealthDataIngestion
 ├─ Receives POST request
 ├─ Validates metrics (range checks, null values)
 ├─ Stores to DynamoDB HealthMetrics table
-│  ├─ PK: userId = "user_001"
+│  ├─ PK: userId = "demo-user-dhanush"
 │  ├─ SK: timestamp = "2026-02-18T09:30:45Z"
 │  └─ Attributes: heartRate, spo2, steps, ecg, temperature
 ├─ Publishes to SNS topic "health-alerts" with metrics
@@ -249,7 +250,7 @@ Lambda: HealthAnomalyInference (Container Image - 1024MB)
 
 SNS Message Format (when anomaly):
 {
-  "userId": "user_001",
+  "userId": "demo-user-dhanush",
   "anomalyType": "tachycardia",
   "currentValue": 145,
   "normalRange": "60-100",
@@ -257,8 +258,11 @@ SNS Message Format (when anomaly):
   "edgeAnomalyScore": 0.8,
   "cloudAnomalyScore": 0.9,
   "detectionSource": "cloud",
+  "anomalyReasons": [
+    "Resting heart rate: 145 BPM is above normal range (50–100 BPM)"
+  ],
   "timestamp": "2026-02-18T09:30:45Z",
-  "message": "Heart rate abnormally high: 145 bpm (detected by cloud ML)"
+  "message": "Resting heart rate: 145 BPM is above normal range (50–100 BPM)"
 }
 ```
 
@@ -316,7 +320,7 @@ Mobile Device (React Native App)
 
 ```
 Mobile App Periodically Calls:
-GET /health-data/sync?userId=user_001&since=2026-02-18T09:00:00Z
+GET /health-data/sync?userId=demo-user-dhanush&since=2026-02-18T09:00:00Z
 
 Lambda Response:
 {
@@ -329,7 +333,9 @@ Lambda Response:
       "edgeActivity": "run",
       "edgeAnomalyScore": 0.8,
       "cloudAnomalyScore": 0.9,
-      "anomalies": ["tachycardia"],
+      "anomalyDetected": true,
+      "anomalySource": "cloud",
+      "anomalyReasons": ["Resting heart rate: 145 BPM is above normal range (50–100 BPM)"],
       "severity": "high"
     },
     {
@@ -340,14 +346,16 @@ Lambda Response:
       "edgeActivity": "walk",
       "edgeAnomalyScore": 0.1,
       "cloudAnomalyScore": 0.05,
-      "anomalies": [],
+      "anomalyDetected": false,
+      "anomalySource": "none",
+      "anomalyReasons": [],
       "severity": "none"
     }
   ],
   "total": 48,
   "lastSync": "2026-02-18T09:30:45Z",
   "edgeModelVersion": "v1.0",
-  "cloudModelVersion": "isolation_forest_v2"
+  "cloudModelVersion": "GradientBoosting_v1"
 }
 ```
 
@@ -433,10 +441,10 @@ Cloud ML Advantages:
 └─ Updatable: Model retraining without app updates
 
 Model Performance (Test Set):
-├─ Precision: 91%
-├─ Recall: 88%
-├─ F1-Score: 0.89
-└─ False Positive Rate: 5%
+├─ Precision: 99.3%
+├─ Recall: 99.7%
+├─ F1-Score: 0.995
+└─ AUC-ROC: 1.000
 ```
 
 ### **Combined Decision Logic**
@@ -444,12 +452,20 @@ Model Performance (Test Set):
 ```
 if edgeAnomalyScore >= 0.5:
     ALERT(source="edge", severity=calculate_severity(edgeScore))
+    reasons = edge_anomaly_reasons  // from on-device LocalAnomalyDetector
 elif cloudAnomalyScore >= 0.5:
     ALERT(source="cloud", severity=calculate_severity(cloudScore))
+    reasons = cloud_anomaly_reasons  // from GradientBoosting feature analysis
 elif heartRate > 140 or heartRate < 40:
     ALERT(source="rule-based", severity="high")
+    reasons = threshold_reasons  // e.g. "Heart rate 180 BPM is dangerously high"
 else:
     NORMAL()
+
+Anomaly reasons are:
+├─ Stored in DynamoDB (anomalyReasons list)
+├─ Included in SNS push notification body
+└─ Displayed on Mobile Dashboard alert cards + history
 
 Severity Calculation:
 ├─ HIGH: score > 0.8 OR critical values (HR > 150, HR < 40)
@@ -474,21 +490,21 @@ Mobile App Startup Flow:
 3. App registers token with backend
    POST /notifications/register
    {
-     "userId": "user_001",
+     "userId": "demo-user-dhanush",
      "deviceId": "uuid-of-device",
      "expoPushToken": "ExponentPushToken[...]"
    }
 
 4. Lambda HealthDataIngestion:
    ├─ Stores in DynamoDB HealthPushTokens table
-   │  ├─ PK: userId = "user_001"
+   │  ├─ PK: userId = "demo-user-dhanush"
    │  ├─ Attributes: deviceId, expoPushToken, registeredAt
    │  └─ Allows multiple tokens per user (phone + tablet)
    └─ Returns: { success: true, saved: true }
 
 5. When anomaly detected:
    └─ HealthSnsToExpo Lambda queries table
-      └─ Retrieves all tokens for user_001
+      └─ Retrieves all tokens for demo-user-dhanush
          └─ Sends push to each token
 ```
 
@@ -521,7 +537,7 @@ TIME: 09:30:00 AM - Continuous Background Monitoring
            POST /health-data/ingest
            Headers: X-API-Key: 27tpgpLoMk7A8mDknvE8S8AhzwBeS6fm1U7KpQhT
            Body: {
-             userId: "user_001",
+             userId: "demo-user-dhanush",
              timestamp: "2026-02-18T09:30:00Z",
              metrics: {
                heartRate: 145,
@@ -539,31 +555,34 @@ TIME: 09:30:00 AM - Continuous Background Monitoring
            ✓ Invokes HealthAnomalyInference Lambda
 
 09:45:03 - HealthAnomalyInference Lambda:
-           ✓ Loads Isolation Forest from S3
+           ✓ Loads GradientBoosting model from S3
            ✓ Retrieves recent metrics from DynamoDB
-           ✓ Feature engineering: [HR, steps, calories, hour, edgeScore]
+           ✓ Feature engineering: [HR, steps, calories, distance]
            ✓ Cloud anomaly score: 0.9 (HIGH)
+           ✓ Generates anomaly reasons: ["Resting heart rate: 145 BPM is above normal range (50–100 BPM)"]
            
 09:45:04 - Combined Decision:
            ✓ edgeScore: 0.8 (detected on-device)
            ✓ cloudScore: 0.9 (confirmed by cloud)
            ✓ Decision: ALERT - TACHYCARDIA (both models agree)
            ✓ Severity: HIGH (cloudScore > 0.8)
-           ✓ Publishes SNS alert with both scores
+           ✓ anomalyReasons stored in DynamoDB
+           ✓ Publishes SNS alert with both scores + anomaly reasons
 
 09:45:05 - SNS distributes to subscribers:
 
            A) HealthSnsToExpo Lambda:
-              ✓ Queries DynamoDB for user_001 tokens
+              ✓ Queries DynamoDB for demo-user-dhanush tokens
               ✓ Formats Expo message:
                  Title: "⚠️ Health Alert"
-                 Body: "Heart rate abnormally high: 145 bpm"
+                 Body: "Resting heart rate: 145 BPM is above normal range (50–100 BPM)"
                  Data: {
                    anomalyType: "tachycardia",
                    severity: "high",
                    edgeScore: 0.8,
                    cloudScore: 0.9,
-                   value: 145
+                   value: 145,
+                   anomalyReasons: ["Resting heart rate: 145 BPM is above normal range (50–100 BPM)"]
                  }
               ✓ Calls Expo Push API
               

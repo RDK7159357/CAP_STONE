@@ -102,8 +102,21 @@ export const HistoryScreen = () => {
             ]}
           >
             <Text style={{ color: Colors.anomaly, fontSize: 12, fontWeight: '600' }}>
-              Anomaly
+              Anomaly{item.anomalySource ? ` (${item.anomalySource})` : ''}
             </Text>
+          </View>
+        )}
+        {item.isAnomaly && item.anomalyReasons && item.anomalyReasons.length > 0 && (
+          <View style={{ marginTop: 4 }}>
+            {item.anomalyReasons.slice(0, 2).map((reason, idx) => (
+              <Text
+                key={idx}
+                style={{ color: Colors.anomaly, fontSize: 10, opacity: 0.8, marginTop: 1 }}
+                numberOfLines={1}
+              >
+                • {reason}
+              </Text>
+            ))}
           </View>
         )}
       </View>

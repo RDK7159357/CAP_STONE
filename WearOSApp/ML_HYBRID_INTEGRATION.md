@@ -1,49 +1,69 @@
 # Hybrid ML Integration Guide
 
-This document explains how the Wear OS app uses a hybrid anomaly detection approach: lightweight on-device rules + cloud LSTM inference.
+This document explains how the Wear OS app uses a hybrid anomaly detection approach: lightweight on-device rules + edge TFLite inference + cloud GradientBoosting inference, with **anomaly explainability** at every layer.
 
 ## Architecture
 
 ```
 On-Device (LocalAnomalyDetector)
-  └─ Simple rules: HR threshold, delta detection
-     └─ Flags suspicious metrics locally
-        └─ Sends to cloud with flags
+  └─ Rule-based: HR thresholds, delta spikes
+     └─ Produces human-readable anomalyReasons
+        └─ Feeds into EdgeMlEngine
 
-Cloud (Lambda)
-  └─ Receives flagged metrics
-     └─ Runs LSTM autoencoder inference
-        └─ Returns anomaly score (0–1)
-           └─ App triggers alerts based on cloud score
+Edge TFLite (EdgeMlEngine)
+  └─ Conv1D autoencoder (~50KB, ~20ms)
+     └─ Per-feature reconstruction error → anomalyReasons
+        └─ Falls back to rule-based if TFLite unavailable
+
+Cloud (Lambda – GradientBoosting)
+  └─ Receives metrics with edge flags + reasons
+     └─ Runs GradientBoosting (F1=0.995) inference
+        └─ Returns anomaly_reasons + feature_contributions
+           └─ App shows "Why?" card on watch + push notification
 ```
 
 ## On-Device: LocalAnomalyDetector
 
-Located in `domain/usecase/LocalAnomalyDetector.kt`, this provides **lightweight, immediate** anomaly checks:
+Located in `domain/usecase/LocalAnomalyDetector.kt`, this provides **lightweight, immediate** anomaly checks with explainability:
 
 ### Rules:
 1. **Absolute Threshold**: HR ≥ 140 BPM or HR ≤ 40 BPM → suspicious
 2. **Delta Check**: HR jumps by ≥ 30 BPM in one sample → suspicious
 
 ### Methods:
-- `isSuspicious(metric, recent)`: Boolean—quick flag
-- `getLocalScore(metric, recent)`: Float 0–1—rule-based confidence
+- `isSuspicious(metric, recent)`: Boolean — delegates to `getAnomalyReasons().isNotEmpty()`
+- `getAnomalyReasons(metric, recent)`: `List<String>` — human-readable explanations
+- `getLocalScore(metric, recent)`: Float 0–1 — rule-based confidence
 
-### Usage in Repository:
-```kotlin
-val isAnomalous = anomalyDetector.isSuspicious(metric, recentMetrics)
-val localScore = anomalyDetector.getLocalScore(metric, recentMetrics)
-// Send in HealthMetricRequest
+### Example Reasons:
+```
+"Heart rate 180 BPM is dangerously high (threshold: 140 BPM)"
+"Heart rate 35 BPM is dangerously low (threshold: 40 BPM)"
+"Sudden heart rate spike: 70 → 120 BPM (50 BPM change in one reading)"
 ```
 
-**When to use locally:**
-- Immediate UI alert before cloud responds
-- User feedback (haptics/toast) within seconds
-- Offline detection if network is slow
+## Edge ML: EdgeMlEngine
+
+Located in `domain/usecase/EdgeMlEngine.kt`, wraps TFLite models with explainability:
+
+### AnomalyResult:
+```kotlin
+data class AnomalyResult(
+    val isAnomaly: Boolean,
+    val score: Float,                  // 0-1 anomaly score
+    val modelVersion: String,          // e.g. "edge-tflite-v1" or "rule-fallback"
+    val usedTflite: Boolean,
+    val reasons: List<String> = emptyList()  // Explainability
+)
+```
+
+### How reasons are generated:
+- **TFLite path**: Per-feature reconstruction error compared to mean error; features contributing above-average signal get explanations like `"heartRate deviates from expected pattern (72% of anomaly signal)"`
+- **Rule fallback**: Passes through `LocalAnomalyDetector.getAnomalyReasons()`
 
 ## Cloud: Lambda Integration
 
-Once deployed, the CloudBackend Lambda receives the sync request with flagged metrics:
+The CloudBackend Lambda uses a **GradientBoosting classifier** (F1=0.995, AUC=1.00) with full explainability.
 
 ### Request Payload (HealthMetricRequest):
 ```json
@@ -51,33 +71,55 @@ Once deployed, the CloudBackend Lambda receives the sync request with flagged me
   "userId": "user_001",
   "timestamp": 1704207600000,
   "metrics": {
-    "heartRate": 155.0,
-    "steps": 120,
-    "calories": 45.5,
-    "batteryLevel": 85
+    "heartRate": 175.0,
+    "steps": 30,
+    "calories": 15.2,
+    "distance": 0.1
   },
   "deviceId": "wear_SM-R910",
-  "isAnomalous": true,                    // Local flag
-  "localAnomalyScore": 0.8                // Local confidence (0-1)
+  "isAnomalous": true,
+  "edgeAnomalyScore": 0.85,
+  "localAnomalyScore": 0.8,
+  "activityState": "rest",
+  "modelVersion": "edge-tflite-v1",
+  "anomalyReasons": ["Heart rate 175 BPM is dangerously high (threshold: 140 BPM)"]
 }
 ```
 
-### Lambda Handler (ingest endpoint):
-1. Receive and validate request
-2. If `isAnomalous == true`:
-   - Load LSTM autoencoder from S3/disk
-   - Extract sequence (e.g., last 30 samples)
-   - Run inference: `model.predict(sequence)`
-   - Get reconstruction error or anomaly probability
-3. Return response with cloud score
+### Lambda Inference Response:
+```json
+{
+  "results": [{
+    "metric_id": "...",
+    "is_anomaly": true,
+    "cloud_score": 0.97,
+    "anomaly_reasons": [
+      "heartRate: 175.0 BPM is above normal range (50-100 BPM)",
+      "steps: 30 is below normal range (0-500) — low activity with high HR"
+    ],
+    "feature_contributions": {
+      "heartRate": 0.72,
+      "steps": 0.15,
+      "calories": 0.08,
+      "distance": 0.05
+    }
+  }],
+  "model_type": "GradientBoosting",
+  "model_supervised": true
+}
+```
 
-### Response Payload (HealthMetricResponse):
+### Ingestion Lambda Response (to app):
 ```json
 {
   "success": true,
-  "message": "Metric ingested",
-  "anomalyDetected": true,                // Final verdict
-  "anomalyScore": 0.92                    // LSTM score (0-1)
+  "message": "Metric ingested and analyzed",
+  "anomalyDetected": true,
+  "anomalySource": "cloud",
+  "cloudScore": 0.97,
+  "anomalyReasons": [
+    "heartRate: 175.0 BPM is above normal range (50-100 BPM)"
+  ]
 }
 ```
 
@@ -85,136 +127,88 @@ Once deployed, the CloudBackend Lambda receives the sync request with flagged me
 
 The `DataSyncWorker` calls `repository.syncMetricsToCloud()`, which:
 
-1. Retrieves unsynced metrics
+1. Retrieves unsynced metrics from Room
 2. For each metric:
-   - Flags via `anomalyDetector.isSuspicious(metric, context)`
-   - Gets local score via `getLocalScore(…)`
-   - Includes both in `HealthMetricRequest`
+   - Runs `edgeMlEngine.detectAnomaly(metric, recent)` → `AnomalyResult` with reasons
+   - Gets rule-based score via `getLocalScore(…)`
+   - Includes `anomalyReasons` in `HealthMetricRequest`
 3. Sends batch to Lambda `/health-data/sync` endpoint
-4. Backend returns response with `anomalyScore`
+4. Backend returns response with `anomalyReasons` and `anomalySource`
 5. Marks metrics as synced
 
-## UI Handling: Cloud Scores
+## UI: Anomaly Alert Screen
 
-Currently, the MainActivity uses a simple local threshold (HR ≥ 140). To integrate cloud scores:
+The `AnomalyAlertScreen` (in `MainActivity.kt`) auto-navigates when an anomaly is detected:
 
-### Option A: Extend HealthMetric with cloud score
+### Anomaly Detection Logic:
 ```kotlin
-@Entity(tableName = "health_metrics")
-data class HealthMetric(
-    // ... existing fields
-    val cloudAnomalyScore: Float? = null  // From API response
-)
-```
-Then update HomeScreen:
-```kotlin
-val anomalyMetric = healthMetrics.firstOrNull { (it.cloudAnomalyScore ?: 0f) > 0.7f }
-```
-
-### Option B: Track separately in state
-```kotlin
-var cloudAnomalyScores: Map<Long, Float> by remember { mutableStateOf(emptyMap()) }
-// Update from sync response
-val anomalyMetric = healthMetrics.firstOrNull { 
-    (cloudAnomalyScores[it.id] ?: 0f) > 0.7f 
+// Check anomalyReasons from edge/cloud ML, fall back to HR threshold
+val anomalyMetric = healthMetrics.firstOrNull {
+    !it.anomalyReasons.isNullOrEmpty() || (it.heartRate ?: 0f) >= 140f
 }
 ```
 
-## Step-by-Step Implementation
-
-### 1. Train & export LSTM model
-From `MLPipeline/models/train_lstm_autoencoder.py`:
-```bash
-python src/models/train_lstm_autoencoder.py
-# Exports SavedModel or ONNX to saved_models/
-```
-
-### 2. Deploy Lambda with model
-In CloudBackend:
-```python
-# lambda_function.py
-import tensorflow as tf
-
-model = tf.keras.models.load_model('path/to/saved_model')
-
-def lambda_handler(event, context):
-    for metric in event['metrics']:
-        if metric['isAnomalous']:
-            sequence = get_sequence(metric['userId'], metric['timestamp'])
-            reconstruction = model.predict(sequence)
-            anomaly_score = compute_error(sequence, reconstruction)
-            metric['anomalyScore'] = float(anomaly_score)
-    
-    return {'success': True, 'anomalyScore': ...}
-```
-
-### 3. Update HealthMetricRequest
-Already done in `domain/model/HealthMetric.kt`:
-- `isAnomalous: Boolean`
-- `localAnomalyScore: Float`
-
-### 4. Update HealthMetricResponse
-Already done:
-- `anomalyScore: Float`
-
-### 5. Update MainActivity (optional)
-If you want cloud scores to drive UI alerts, extend the anomaly detection logic:
-```kotlin
-// After sync completes, use anomalyScore from response
-val cloudScores = syncResponse.metrics.associate { it.id to it.anomalyScore }
-val anomalyMetric = healthMetrics.firstOrNull { 
-    (cloudScores[it.id] ?: 0f) > 0.7f 
-}
-```
+### Alert UI:
+1. **Red alert card** — HR value, steps, average HR, timestamp
+2. **"Why?" card** — Lists each anomaly reason with bullet points
+3. **Action buttons** — Acknowledge, View Details (trends)
+4. **Haptic feedback** — LongPress vibration on new anomaly
+5. **Notification** — Shows first anomaly reason instead of generic text
 
 ## Testing Hybrid Detection
 
 ### Scenario 1: Local detection (no network)
-- Device detects HR spike locally
-- Haptics/notifications trigger immediately
+- Device detects HR spike locally via `LocalAnomalyDetector`
+- `anomalyReasons`: `["Heart rate 180 BPM is dangerously high (threshold: 140 BPM)"]`
+- Haptics + notification trigger immediately with reason text
 - On reconnect, sends to cloud for confirmation
 
 ### Scenario 2: Cloud refinement
-- Local threshold flags metric (HR = 145)
-- Cloud LSTM scores it 0.95 → confirmed anomaly
+- Edge flags metric (HR = 145) with reasons
+- Cloud GradientBoosting confirms with score 0.95 + detailed feature contributions
+- Cloud reasons replace/augment edge reasons
 - Higher confidence than local rule
 
 ### Scenario 3: False positive elimination
-- Local threshold flags spike (HR = 142, delta +35)
-- Cloud LSTM scores it 0.15 → not anomalous (e.g., user exercised)
-- App can suppress alert or show different message
+- Local threshold flags spike (HR = 155, steps = 800, during exercise)
+- Cloud scores it 0.08 → not anomalous (high activity context)
+- `anomalyReasons` empty → no alert shown
 
-## Performance Tuning
+## Anomaly Sources
+
+| Source | When Used | Reason Quality |
+|--------|-----------|---------------|
+| `edge` | TFLite autoencoder detects anomaly | Per-feature reconstruction error |
+| `threshold` | Lambda threshold fallback | Range-based ("HR above 140 BPM") |
+| `cloud` | GradientBoosting inference | Feature importance + range-based |
+| `rule-fallback` | TFLite unavailable on device | Same as LocalAnomalyDetector |
+
+## Performance
 
 ### Local detector:
-- `isSuspicious()`: < 1ms (simple arithmetic)
-- `getLocalScore()`: < 1ms
+- `isSuspicious()` / `getAnomalyReasons()`: < 1ms
 - No network overhead
+
+### Edge TFLite:
+- Inference: ~20ms
+- Model size: ~50KB
 
 ### Cloud detector:
 - Lambda cold start: ~1–2s
-- Inference time: depends on model size/complexity
-  - Small LSTM: ~100–500ms
-  - Cache model in memory for warmth
-- Network round-trip: ~500ms–2s (variable)
+- GradientBoosting inference: ~50ms
+- Network round-trip: ~500ms–2s
 
 ### Strategy:
-- Use local for immediate feedback
-- Cloud for authoritative scoring
-- Persist cloud score in Room for replay/analysis
-
-## Next Steps
-
-1. **Train the model**: Run `MLPipeline/src/models/train_lstm_autoencoder.py`
-2. **Export**: Save as SavedModel or ONNX
-3. **Deploy Lambda**: Update `CloudBackend/aws-lambda/lambda_function.py` with inference code
-4. **Test end-to-end**: Generate synthetic anomalies, watch for dual detection
-5. **Tune thresholds**: Adjust local rules and cloud confidence threshold (default 0.7) based on false positive rate
+- Edge for immediate feedback with reasons
+- Cloud for authoritative scoring with feature contributions
+- Persist `anomalyReasons` + `anomalySource` in DynamoDB for replay/analysis
 
 ---
 
 **References:**
 - `LocalAnomalyDetector`: `domain/usecase/LocalAnomalyDetector.kt`
-- `HealthMetricRequest`: `domain/model/HealthMetric.kt`
+- `EdgeMlEngine`: `domain/usecase/EdgeMlEngine.kt`
+- `HealthMetricRequest` / `HealthMetricResponse`: `domain/model/HealthMetric.kt`
 - `HealthRepository.syncMetricsToCloud()`: `data/repository/HealthRepository.kt`
-- ML training: `MLPipeline/src/models/train_lstm_autoencoder.py`
+- Cloud inference: `CloudBackend/aws-lambda/lambda_inference_sklearn.py`
+- Cloud ingestion: `CloudBackend/aws-lambda/lambda_function.py`

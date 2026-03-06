@@ -1,5 +1,6 @@
 /**
  * Anomaly Alert Card Component
+ * Displays recent anomalies with human-readable explanations of why each was flagged.
  */
 
 import React from 'react';
@@ -36,12 +37,37 @@ export const AnomalyAlert: React.FC<AnomalyAlertProps> = ({ anomalies }) => {
             color={Colors.anomaly}
           />
           <View style={styles.anomalyContent}>
-            <Text style={styles.anomalyScore}>
-              Score: {anomaly.anomalyScore.toFixed(2)}
-            </Text>
+            <View style={styles.anomalyHeader}>
+              <Text style={styles.anomalyScore}>
+                Score: {anomaly.anomalyScore.toFixed(2)}
+              </Text>
+              {anomaly.anomalySource && (
+                <View style={styles.sourceBadge}>
+                  <Text style={styles.sourceText}>
+                    {anomaly.anomalySource}
+                  </Text>
+                </View>
+              )}
+            </View>
             <Text style={styles.anomalyTime}>
               {new Date(anomaly.timestamp).toLocaleTimeString()}
             </Text>
+
+            {/* Anomaly Explanation */}
+            {anomaly.anomalyReasons && anomaly.anomalyReasons.length > 0 && (
+              <View style={styles.reasonsContainer}>
+                {anomaly.anomalyReasons.map((reason, index) => (
+                  <View key={index} style={styles.reasonRow}>
+                    <MaterialCommunityIcons
+                      name="information-outline"
+                      size={14}
+                      color={Colors.gray600}
+                    />
+                    <Text style={styles.reasonText}>{reason}</Text>
+                  </View>
+                ))}
+              </View>
+            )}
           </View>
         </View>
       ))}
@@ -71,7 +97,7 @@ const styles = StyleSheet.create({
   },
   anomalyItem: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     paddingVertical: Spacing.md,
     borderBottomWidth: 1,
     borderBottomColor: `${Colors.anomaly}20`,
@@ -80,15 +106,50 @@ const styles = StyleSheet.create({
     marginLeft: Spacing.md,
     flex: 1,
   },
+  anomalyHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
   anomalyScore: {
     fontSize: 14,
     fontWeight: '600',
     color: Colors.gray900,
   },
+  sourceBadge: {
+    backgroundColor: `${Colors.anomaly}20`,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 2,
+    borderRadius: BorderRadius.sm,
+  },
+  sourceText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: Colors.anomaly,
+    textTransform: 'uppercase',
+  },
   anomalyTime: {
     fontSize: 12,
     color: Colors.gray600,
     marginTop: Spacing.xs,
+  },
+  reasonsContainer: {
+    marginTop: Spacing.sm,
+    backgroundColor: `${Colors.anomaly}08`,
+    borderRadius: BorderRadius.sm,
+    padding: Spacing.sm,
+  },
+  reasonRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 4,
+  },
+  reasonText: {
+    fontSize: 13,
+    color: Colors.gray700,
+    marginLeft: Spacing.xs,
+    flex: 1,
+    lineHeight: 18,
   },
 });
 

@@ -20,7 +20,7 @@ const apiKey =
 const userId =
   typeof extra.userId === 'string'
     ? extra.userId
-    : 'user_001';
+    : 'demo-user-dhanush';
 
 const normalizedBaseUrl = apiBaseUrl.replace(/\/+$/, '');
 

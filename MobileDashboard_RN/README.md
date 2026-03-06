@@ -9,8 +9,9 @@ Cross-platform mobile dashboard for visualizing health monitoring data and recei
 ### ✨ Features Migrated
 
 - 📊 **Real-time Health Metrics Visualization** - Heart rate, steps, calories, distance
-- 📈 **Historical Trend Tracking** - View metrics organized by date
-- 🔔 **Push Notifications** - Anomaly alerts via Expo Notifications
+- 📈 **Historical Trend Tracking** - View metrics organized by date with anomaly badges
+- 🔔 **Push Notifications** - Anomaly alerts via Expo Notifications with contextual reasons
+- 💡 **Anomaly Explainability** - Alert cards show *why* each anomaly occurred (source + reasons)
 - 🌙 **Dark Mode Support** - Automatic theme switching
 - 📱 **Material Design UI** - Consistent, modern interface
 - 💾 **Offline Support** - Local caching with AsyncStorage
@@ -136,8 +137,9 @@ Edit `src/config/api.config.ts`:
 
 ```typescript
 export const ApiConfig = {
-  baseUrl: 'https://your-api-gateway-url.execute-api.us-east-1.amazonaws.com/prod/',
+  baseUrl: 'https://u8tkgz3vsf.execute-api.ap-south-2.amazonaws.com/prod/',
   apiKey: 'your-api-key-here',
+  userId: 'demo-user-dhanush',
   // ... other config
 };
 ```
@@ -152,10 +154,10 @@ The app uses **Axios** for HTTP requests with automatic retry and timeout handli
 
 ### Health Data Endpoints
 
-- `GET /health/metrics` - Fetch user's health metrics
-- `POST /health/metrics` - Upload new health metric
-- `GET /health-data/sync` - Sync health data
-- `GET /health-data/history` - Get historical data
+- `GET /health/metrics` - Fetch user's latest health metrics (with anomalyReasons & anomalySource)
+- `POST /health-data/ingest` - Ingest new health metric
+- `POST /health-data/sync` - Batch sync from Wear OS
+- `GET /health-data/history` - Get historical data (with anomalyReasons & anomalySource)
 
 ## 🔔 Push Notifications
 
@@ -179,9 +181,11 @@ curl -X POST https://exp.host/--/api/v2/push/send \
     "to": "[EXPO_PUSH_TOKEN]",
     "sound": "default",
     "title": "Health Alert",
-    "body": "Anomaly detected in your metrics"
+    "body": "Heart rate 180 BPM is dangerously high (threshold: 140 BPM)"
   }'
 ```
+
+> The backend uses the first anomaly reason as the push notification body, so users see *why* the alert was triggered.
 
 ## 💾 Data Persistence
 

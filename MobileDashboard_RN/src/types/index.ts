@@ -12,6 +12,8 @@ export interface HealthMetric {
   isAnomaly: boolean;
   anomalyScore: number;
   activityState?: 'sleep' | 'rest' | 'walk' | 'run' | 'exercise' | 'other' | null;
+  anomalyReasons?: string[];           // Human-readable explanations of why anomaly was detected
+  anomalySource?: 'edge' | 'cloud' | 'threshold' | 'none' | null;
 }
 
 export interface HealthDataState {

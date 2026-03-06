@@ -6,9 +6,12 @@ Standalone Wear OS application that continuously monitors vital signs and syncs 
 ## Features
 - Real-time heart rate monitoring
 - Step counting and calorie tracking
+- **On-device anomaly detection** with TFLite models + heuristic fallback
+- **Anomaly explainability** — generates human-readable reasons on-device (per-feature reconstruction error + threshold violations)
 - Local data buffering with Room database
 - Background synchronization with cloud backend
 - Battery-optimized sensor polling
+- **Data producer architecture** — collects, analyzes, and pushes data to cloud; does not pull from cloud
 
 ## Setup Instructions
 
@@ -71,13 +74,26 @@ On-device ML inference engine with TFLite models + heuristic fallback:
 | Anomaly LSTM | Reconstruction error | Partial | ~50KB | ~20ms |
 | Heuristic Fallback | Rule-based detection | ~75% | — | <1ms |
 
-> **Note**: Cloud models are significantly more accurate (Random Forest F1=1.00 for anomaly, Extra Trees 86.2% for activity). Edge models serve as a privacy-preserving first pass; cloud inference provides the definitive score.
+> **Note**: Cloud models are significantly more accurate (GradientBoosting F1=0.995 for anomaly, XGBoost 85.8% for activity). Edge models serve as a privacy-preserving first pass; cloud inference provides the definitive score with human-readable anomaly reasons.
+
+**Anomaly Explainability on Device:**
+- `LocalAnomalyDetector` generates threshold-based anomaly reasons (e.g., "Heart rate 180 BPM is dangerously high")
+- `EdgeMlEngine` provides per-feature reconstruction error contributions from TFLite LSTM
+- Both sources produce `anomalyReasons: List<String>` stored in `HealthMetric` model
+- Reasons are synced to cloud alongside metric data
 
 ### Room Database
 Local storage for buffering health metrics before cloud sync. Offline-first architecture.
 
 ### DataSyncWorker
-WorkManager worker that periodically syncs buffered data to cloud backend (every 15-60 minutes).
+WorkManager worker that periodically syncs buffered data to cloud backend (every 15-60 minutes). The Wear OS app is a **data producer only** — it collects sensor data, runs edge ML inference (including anomaly explainability), stores results in Room DB, and pushes to the cloud API. It does not pull or display data from the cloud; that role belongs to the Mobile Dashboard.
+
+## Data Flow
+
+```
+Sensors → HealthMonitoringService → EdgeMlEngine (TFLite + anomaly reasons)
+   → Room DB → DataSyncWorker → POST /health-data/ingest → Cloud
+```
 
 ## Testing with Emulator
 
@@ -121,7 +137,9 @@ Set Heart Rate to 155 BPM and maintain for 10 minutes to trigger anomaly detecti
 - Review cloud backend logs
 
 ## Next Steps
-1. Complete cloud backend setup
-2. Configure API endpoint in ApiConfig.kt
-3. Test end-to-end data flow
-4. Optimize battery usage based on testing
+1. ~~Complete cloud backend setup~~ ✅ Done
+2. ~~Configure API endpoint in ApiConfig.kt~~ ✅ Done
+3. ~~Test end-to-end data flow~~ ✅ Done
+4. Optimize battery usage based on real-device testing
+5. Add Google Fit integration for richer sensor data
+6. Implement on-device model updates (OTA TFLite swap)

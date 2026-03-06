@@ -7,6 +7,7 @@ import javax.inject.Singleton
 /**
  * Lightweight on-device anomaly detection using simple rules.
  * Flags suspicious metrics for cloud verification via LSTM.
+ * Returns human-readable reasons explaining why each anomaly was flagged.
  */
 @Singleton
 class LocalAnomalyDetector @Inject constructor() {
@@ -22,11 +23,22 @@ class LocalAnomalyDetector @Inject constructor() {
      * Returns true if any simple rule is violated.
      */
     fun isSuspicious(metric: HealthMetric, recentMetrics: List<HealthMetric> = emptyList()): Boolean {
-        val hr = metric.heartRate ?: return false
+        return getAnomalyReasons(metric, recentMetrics).isNotEmpty()
+    }
+
+    /**
+     * Get human-readable reasons why this metric was flagged as anomalous.
+     * Returns an empty list if the metric appears normal.
+     */
+    fun getAnomalyReasons(metric: HealthMetric, recentMetrics: List<HealthMetric> = emptyList()): List<String> {
+        val hr = metric.heartRate ?: return emptyList()
+        val reasons = mutableListOf<String>()
 
         // Rule 1: Absolute threshold
-        if (hr >= HR_THRESHOLD_HIGH || hr <= HR_THRESHOLD_LOW) {
-            return true
+        when {
+            hr >= 170f -> reasons.add("Heart rate ${hr.toInt()} BPM is dangerously high (threshold: ${HR_THRESHOLD_HIGH.toInt()} BPM)")
+            hr >= HR_THRESHOLD_HIGH -> reasons.add("Heart rate ${hr.toInt()} BPM exceeds safe threshold (${HR_THRESHOLD_HIGH.toInt()} BPM)")
+            hr <= HR_THRESHOLD_LOW -> reasons.add("Heart rate ${hr.toInt()} BPM is critically low (threshold: ${HR_THRESHOLD_LOW.toInt()} BPM)")
         }
 
         // Rule 2: Sudden spike/drop from previous sample
@@ -35,12 +47,16 @@ class LocalAnomalyDetector @Inject constructor() {
             if (previousHr != null) {
                 val delta = kotlin.math.abs(hr - previousHr)
                 if (delta >= HR_DELTA_THRESHOLD) {
-                    return true
+                    val direction = if (hr > previousHr) "spike" else "drop"
+                    reasons.add(
+                        "Sudden heart rate $direction: ${previousHr.toInt()} → ${hr.toInt()} BPM " +
+                        "(${delta.toInt()} BPM change in one reading)"
+                    )
                 }
             }
         }
 
-        return false
+        return reasons
     }
 
     /**

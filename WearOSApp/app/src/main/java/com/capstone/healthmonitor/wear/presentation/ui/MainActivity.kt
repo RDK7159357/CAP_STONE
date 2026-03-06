@@ -107,7 +107,7 @@ class MainActivity : ComponentActivity() {
         private const val TAG = "MainActivity"
         private const val MIN_SYNC_INTERVAL_MINUTES = 15
         private const val DEFAULT_SYNC_INTERVAL_MINUTES = 15
-        private const val DEFAULT_USER_ID = "user_001"
+        private const val DEFAULT_USER_ID = "demo-user-dhanush"
     }
 
     private val defaultDeviceId: String by lazy { "wear_${Build.MODEL}" }
@@ -272,8 +272,10 @@ fun HealthMonitorScreen(
 
     val healthMetrics by healthMetricsFlow.collectAsState(initial = emptyList())
     val latestMetric = healthMetrics.firstOrNull()
-    // Anomaly detection: use local rule initially, cloud score will override on sync response
-    val anomalyMetric = healthMetrics.firstOrNull { (it.heartRate ?: 0f) >= 140f }
+    // Anomaly detection: check anomalyReasons from edge/cloud ML, fall back to HR threshold
+    val anomalyMetric = healthMetrics.firstOrNull {
+        !it.anomalyReasons.isNullOrEmpty() || (it.heartRate ?: 0f) >= 140f
+    }
     val heartRateList = healthMetrics.mapNotNull { it.heartRate }
     val averageHeartRate = if (heartRateList.isNotEmpty()) {
         heartRateList.average().toFloat()
@@ -638,14 +640,36 @@ private fun AnomalyAlertScreen(
                 item {
                     WearCard(modifier = Modifier.fillMaxWidth(0.9f), onClick = {}) {
                         Column(modifier = Modifier.padding(12.dp)) {
-                            Text(text = "⚠️ Elevated heart rate detected", fontWeight = FontWeight.Bold)
+                            Text(text = "⚠️ Anomaly Detected", fontWeight = FontWeight.Bold)
                             Spacer(modifier = Modifier.height(6.dp))
-                            Text(text = "Current: ${(anomaly.heartRate ?: 0f).toInt()} BPM", color = Color(0xFFE74C3C))
+                            Text(text = "HR: ${(anomaly.heartRate ?: 0f).toInt()} BPM", color = Color(0xFFE74C3C))
                             Text(text = "Steps: ${anomaly.steps ?: 0}", color = Color.Gray, style = MaterialTheme.typography.caption2)
                             averageHeartRate?.let { avg ->
-                                Text(text = "Avg last samples: ${avg.toInt()} BPM", style = MaterialTheme.typography.caption2, color = Color.LightGray)
+                                Text(text = "Avg: ${avg.toInt()} BPM", style = MaterialTheme.typography.caption2, color = Color.LightGray)
                             }
                             Text(text = "Time: ${formatTime(anomaly.timestamp)}", style = MaterialTheme.typography.caption2, color = Color.Gray)
+                        }
+                    }
+                }
+
+                // Show anomaly reasons if available
+                val reasons = anomaly.anomalyReasons
+                if (!reasons.isNullOrEmpty()) {
+                    item { Spacer(modifier = Modifier.height(6.dp)) }
+                    item {
+                        WearCard(modifier = Modifier.fillMaxWidth(0.9f), onClick = {}) {
+                            Column(modifier = Modifier.padding(12.dp)) {
+                                Text(text = "Why?", fontWeight = FontWeight.Bold, color = Color(0xFFF39C12), style = MaterialTheme.typography.caption1)
+                                Spacer(modifier = Modifier.height(4.dp))
+                                reasons.forEach { reason ->
+                                    Text(
+                                        text = "• $reason",
+                                        style = MaterialTheme.typography.caption2,
+                                        color = Color.LightGray
+                                    )
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                }
+                            }
                         }
                     }
                 }
@@ -1067,10 +1091,14 @@ private fun sendAnomalyNotification(context: Context, anomaly: HealthMetric?) {
         notificationManager?.createNotificationChannel(channel)
     }
 
+    // Use first anomaly reason if available, otherwise generic HR text
+    val reasonText = anomaly.anomalyReasons?.firstOrNull()
+        ?: "HR ${(anomaly.heartRate ?: 0f).toInt()} BPM at ${formatTime(anomaly.timestamp)}"
+
     val builder = NotificationCompat.Builder(context, ANOMALY_CHANNEL_ID)
         .setSmallIcon(android.R.drawable.ic_dialog_alert)
-        .setContentTitle("Heart rate anomaly")
-        .setContentText("HR ${(anomaly.heartRate ?: 0f).toInt()} BPM at ${formatTime(anomaly.timestamp)}")
+        .setContentTitle("Health Anomaly Detected")
+        .setContentText(reasonText)
         .setPriority(NotificationCompat.PRIORITY_HIGH)
         .setAutoCancel(true)
 

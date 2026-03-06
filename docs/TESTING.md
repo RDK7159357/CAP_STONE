@@ -135,7 +135,7 @@ aws logs tail /aws/lambda/HealthDataIngestion --follow
 
 1. **Inject Test Data**
 ```bash
-curl -X POST https://your-api.com/health-data/ingest \
+curl -X POST https://u8tkgz3vsf.execute-api.ap-south-2.amazonaws.com/prod/health-data/ingest \
   -H 'Content-Type: application/json' \
   -H 'X-API-Key: your-key' \
   -d '{
@@ -242,7 +242,7 @@ results = asyncio.run(load_test(1000))
 
 ```bash
 # Measure end-to-end latency
-time curl -X POST https://your-api.com/health-data/ingest \
+time curl -X POST https://u8tkgz3vsf.execute-api.ap-south-2.amazonaws.com/prod/health-data/ingest \
   -H 'Content-Type: application/json' \
   -d @test-payload.json
 ```
@@ -274,17 +274,17 @@ Target: < 100ms per inference
 #### Authentication Testing
 ```bash
 # Test without API key (should fail)
-curl -X POST https://your-api.com/health-data/ingest \
+curl -X POST https://u8tkgz3vsf.execute-api.ap-south-2.amazonaws.com/prod/health-data/ingest \
   -H 'Content-Type: application/json' \
   -d @test-payload.json
 
 # Test with invalid API key (should fail)
-curl -X POST https://your-api.com/health-data/ingest \
+curl -X POST https://u8tkgz3vsf.execute-api.ap-south-2.amazonaws.com/prod/health-data/ingest \
   -H 'X-API-Key: invalid-key' \
   -d @test-payload.json
 
 # Test with valid API key (should succeed)
-curl -X POST https://your-api.com/health-data/ingest \
+curl -X POST https://u8tkgz3vsf.execute-api.ap-south-2.amazonaws.com/prod/health-data/ingest \
   -H 'X-API-Key: valid-key' \
   -d @test-payload.json
 ```
@@ -301,7 +301,7 @@ def test_data_encryption():
 #### SQL Injection Testing
 ```bash
 # Try SQL injection payloads (should be sanitized)
-curl -X POST https://your-api.com/health-data/ingest \
+curl -X POST https://u8tkgz3vsf.execute-api.ap-south-2.amazonaws.com/prod/health-data/ingest \
   -H 'Content-Type: application/json' \
   -d '{"userId":"user\"; DROP TABLE users;--"}'
 ```
@@ -362,7 +362,18 @@ test_user_001: Normal user
 test_user_002: User with anomalies
 test_user_003: High activity user
 test_user_004: Low activity user
+demo-user-dhanush: Demo user (42 records in DynamoDB with 3 anomaly episodes)
 ```
+
+### Demo Data (Live in DynamoDB)
+
+The `demo-user-dhanush` user has 42 realistic records spanning 24 hours:
+- **36 normal records** with varied activities (sleep, rest, walk, run, exercise)
+- **6 anomaly records** across 3 episodes:
+  - Tachycardia at ~3:30 PM (HR 155–178 BPM)
+  - Bradycardia at ~8:30 PM (HR 38–42 BPM)
+  - Dangerous spike at ~10:15 PM (HR 185–195 BPM)
+- All anomaly records include `anomalyReasons` and `anomalySource` fields
 
 ## Test Automation
 

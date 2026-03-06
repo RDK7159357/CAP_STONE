@@ -17,9 +17,27 @@ function getMockHealthMetrics(): HealthMetric[] {
   for (let i = 0; i < 10; i++) {
     const timestamp = new Date(now.getTime() - i * 60 * 60 * 1000);
     const isAnomaly = Math.random() > 0.8;
-    const hr = Math.floor(Math.random() * (100 - 60) + 60);
+    const hr = isAnomaly
+      ? Math.random() > 0.5
+        ? Math.floor(Math.random() * (200 - 150) + 150) // High HR anomaly
+        : Math.floor(Math.random() * (39 - 30) + 30)    // Low HR anomaly
+      : Math.floor(Math.random() * (100 - 60) + 60);
     const activities = ['sleep', 'rest', 'walk', 'run', 'exercise', 'other'] as const;
     const activityState = hr < 55 ? 'sleep' : hr < 75 ? 'rest' : hr < 90 ? 'walk' : activities[Math.floor(Math.random() * 3) + 3];
+
+    // Generate realistic anomaly reasons based on mock values
+    const anomalyReasons: string[] = [];
+    if (isAnomaly) {
+      if (hr > 150) {
+        anomalyReasons.push(`Resting heart rate: ${hr} BPM is above normal range (50–100 BPM)`);
+      } else if (hr < 40) {
+        anomalyReasons.push(`Resting heart rate: ${hr} BPM is below normal range (50–100 BPM)`);
+      }
+      if (anomalyReasons.length === 0) {
+        anomalyReasons.push(`Model confidence: ${(Math.random() * 0.3 + 0.7).toFixed(0)}% probability of anomaly`);
+      }
+    }
+
     metrics.push({
       id: `mock-${i}`,
       heartRate: hr,
@@ -30,6 +48,8 @@ function getMockHealthMetrics(): HealthMetric[] {
       isAnomaly,
       anomalyScore: isAnomaly ? parseFloat((Math.random() * 1).toFixed(2)) : 0,
       activityState,
+      anomalyReasons: isAnomaly ? anomalyReasons : undefined,
+      anomalySource: isAnomaly ? (['edge', 'cloud', 'threshold'] as const)[Math.floor(Math.random() * 3)] : undefined,
     });
   }
 

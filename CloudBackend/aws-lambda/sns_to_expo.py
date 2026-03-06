@@ -65,12 +65,21 @@ def get_push_tokens(user_id):
 
 def send_expo_push(tokens, payload):
     messages = []
+    # Build a descriptive push body from anomaly reasons if available
+    anomaly_reasons = payload.get("anomalyReasons", [])
+    if anomaly_reasons:
+        body_text = anomaly_reasons[0]  # Lead with the most important reason
+        if len(anomaly_reasons) > 1:
+            body_text += f" (+{len(anomaly_reasons) - 1} more)"
+    else:
+        body_text = "An anomaly was detected. Open the app for details."
+
     for token in tokens:
         messages.append({
             "to": token,
             "sound": "default",
             "title": "Health Alert",
-            "body": "An anomaly was detected. Open the app for details.",
+            "body": body_text,
             "data": payload
         })
 

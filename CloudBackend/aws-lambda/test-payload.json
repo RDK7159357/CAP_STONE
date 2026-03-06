@@ -2,10 +2,18 @@
   "userId": "user_001",
   "timestamp": 1696723200000,
   "metrics": {
-    "heartRate": 155.5,
-    "steps": 1000,
-    "calories": 50.2,
-    "distance": 800.5
+    "heartRate": 175.0,
+    "steps": 30,
+    "calories": 15.2,
+    "distance": 0.1
   },
-  "deviceId": "wear_device_001"
+  "deviceId": "wear_device_001",
+  "isAnomalous": true,
+  "edgeAnomalyScore": 0.85,
+  "localAnomalyScore": 0.8,
+  "activityState": "rest",
+  "modelVersion": "edge-tflite-v1",
+  "anomalyReasons": [
+    "Heart rate 175 BPM is dangerously high (threshold: 140 BPM)"
+  ]
 }

@@ -8,7 +8,8 @@ This system continuously monitors vital signs from a Wear OS smartwatch using a 
 - 🎯 **Edge-first**: On-device TensorFlow Lite models provide instant activity classification and anomaly detection
 - 🧠 **ML-powered**: Lightweight neural networks (Activity Classifier + LSTM Autoencoder) running on-watch
 - ☁️ **Cloud-enhanced**: Lambda containerized inference with GradientBoosting (F1=0.995)
-- 🔄 **Continuous monitoring**: Background service runs 24/7 using Wear OS PassiveMonitoringClient
+- � **Explainable**: Human-readable anomaly reasons from both edge and cloud models
+- �🔄 **Continuous monitoring**: Background service runs 24/7 using Wear OS PassiveMonitoringClient
 - 🔒 **Privacy-preserving**: Primary detection on-device, only aggregated metrics sent to cloud
 
 ## 🌟 Key Features
@@ -23,7 +24,7 @@ This system continuously monitors vital signs from a Wear OS smartwatch using a 
 - **Edge TFLite Models** (on-device):
   - Activity Classifier: Classifies activities (sleep, rest, walk, run, exercise, other)
   - LSTM Anomaly Detector: Detects patterns using sequence reconstruction
-  - Inference time: <20ms, Size: ~65KB total
+  - Inference time: <20ms, Size: ~21KB total
   
 - **Cloud Lambda Inference**:
   - GradientBoosting model (scikit-learn, F1=0.995) — best anomaly detection
@@ -31,6 +32,7 @@ This system continuously monitors vital signs from a Wear OS smartwatch using a 
   - Containerized Lambda function (1024MB)
   - Models stored in S3, loaded on-demand
   - Real-time anomaly scoring with overfitting-proof regularization
+  - **Anomaly explainability**: Returns human-readable reasons + per-feature contribution percentages
 
 ### ✅ Intelligent Data Sync
 - **Periodic sync** every 15-60 minutes (configurable)
@@ -56,7 +58,7 @@ This system continuously monitors vital signs from a Wear OS smartwatch using a 
 │  │  ┌──────────────────┐  ┌────────────────────────────┐    │    │
 │  │  │ Activity         │  │ LSTM Anomaly Detector      │    │    │
 │  │  │ Classifier       │  │ (Sequence Reconstruction)  │    │    │
-│  │  │ TFLite (~15KB)   │  │ TFLite (~50KB)             │    │    │
+│  │  │ TFLite (~5KB)    │  │ TFLite (~16KB)             │    │    │
 │  │  │ <5ms inference   │  │ ~20ms inference            │    │    │
 │  │  └──────────────────┘  └────────────────────────────┘    │    │
 │  └───────────────────────────────────────────────────────────┘    │
@@ -91,20 +93,28 @@ This system continuously monitors vital signs from a Wear OS smartwatch using a 
 │  │  - HealthMetrics   │  │ (Container 1024MB)                  │ │
 │  │  - HealthPushTokens│  │  - GradientBoosting (F1=0.995)      │ │
 │  │                    │  │  - Loads model from S3              │ │
-│  │ S3 Bucket          │  │  - Returns anomaly score            │ │
-│  │  - Model artifacts │  └─────────────────────────────────────┘ │
-│  │    (*.pkl)         │               ↓                           │
-│  └────────────────────┘  ┌─────────────────────────────────────┐ │
+│  │ S3 Bucket          │  │  - Returns anomaly score + reasons  │ │
+│  │  - Model artifacts │  │  - Feature contribution analysis    │ │
+│  │    (*.pkl)         │  └─────────────────────────────────────┘ │
+│  └────────────────────┘                                           │
+│                          ┌─────────────────────────────────────┐ │
+│                          │ HealthReadMetrics Lambda            │ │
+│                          │  - Query /health/metrics & history  │ │
+│                          │  - Returns anomalyReasons to UI     │ │
+│                          └──────────────────────────────────────┘ │
+│                                       ↓                           │
+│                          ┌─────────────────────────────────────┐ │
 │                          │ SNS Topic (health-alerts)           │ │
 │                          │  → HealthSnsToExpo Lambda           │ │
+│                          │  → Expo Push with anomaly reasons   │ │
 │                          │  → SMS Alerts                       │ │
-│                          │  → Expo Push Notifications          │ │
 │                          └─────────────────────────────────────┘ │
 └─────────────────────────────────────────────────────────────────────┘
                                     ↓
                    ┌────────────────────────────────┐
                    │  React Native Mobile Dashboard │
                    │  - Real-time metrics display   │
+                   │  - Anomaly explainability      │
                    │  - Push notifications          │
                    │  - Charts & analytics          │
                    └────────────────────────────────┘
@@ -127,30 +137,45 @@ CAP_STONE/
 ├── CloudBackend/                 # AWS serverless backend
 │   └── aws-lambda/
 │       ├── deploy.sh            # One-click deployment script
+│       ├── destroy.sh           # Tear down all resources
 │       ├── lambda_function.py   # Data ingestion Lambda
 │       ├── lambda_inference_sklearn.py  # Anomaly inference
+│       ├── lambda_read_metrics.py       # Read metrics from DynamoDB
 │       ├── sns_to_expo.py       # Push notification handler
-│       └── Dockerfile.inference # Container for ML Lambda
+│       ├── Dockerfile.inference # Container for ML Lambda
+│       └── iam-policy.json      # IAM permissions
 │
 ├── MLPipeline/                   # Machine learning training
+│   ├── train_pipeline_sklearn.sh # sklearn training pipeline
+│   ├── train_pipeline.sh       # LSTM training pipeline
 │   ├── build_edge_models.sh    # Build TFLite models
-│   ├── export_for_lambda.sh    # Export cloud models
-│   ├── src/models/
-│   │   ├── train_activity_tflite.py
-│   │   ├── train_lstm_tflite.py
-│   │   └── train_isolation_forest_sklearn.py
+│   ├── export_for_lambda.sh    # Export LSTM models for Lambda
+│   ├── src/
+│   │   ├── data/               # Synthetic data generation
+│   │   ├── preprocessing/      # Data cleaning & feature engineering
+│   │   ├── models/             # Training scripts
+│   │   │   ├── train_activity_tflite.py
+│   │   │   ├── train_lstm_tflite.py
+│   │   │   ├── train_lstm_autoencoder.py
+│   │   │   ├── lambda_inference_sklearn.py
+│   │   │   └── lambda_inference.py
+│   │   └── tests/              # Test suites
 │   └── models/
-│       ├── tflite/             # Edge models
-│       └── saved_models/       # Cloud models
+│       ├── tflite/             # Edge models (~21KB)
+│       ├── saved_models/       # Cloud models (.pkl)
+│       └── lambda_export/      # Lambda deployment package
 │
 └── MobileDashboard_RN/          # React Native mobile app
     ├── App.tsx                 # Root component
     ├── src/
-    │   ├── screens/            # Home, Alerts, Settings
-    │   ├── components/         # Reusable components
-    │   ├── services/           # API client
-    │   ├── store/              # Zustand state
-    │   └── config/             # API config
+    │   ├── screens/            # Home, History, Settings
+    │   ├── components/         # MetricCard, AnomalyAlert, ActivityCard, etc.
+    │   ├── navigation/         # BottomTabNavigator, RootNavigator
+    │   ├── services/           # API, notifications, storage
+    │   ├── store/              # Zustand state (health.store.ts)
+    │   ├── config/             # api.config.ts, theme.config.ts
+    │   ├── types/              # TypeScript type definitions
+    │   └── utils/              # Date and number utilities
     └── package.json
 ```
 
@@ -166,7 +191,10 @@ CAP_STONE/
 5. **WorkManager** triggers sync every 15-60 minutes
 6. **Batch upload** to AWS API Gateway
 7. **Lambda** stores to DynamoDB, invokes cloud inference
-8. **SNS** publishes alerts to mobile app
+8. **Cloud inference** returns anomaly score + human-readable reasons
+9. **anomalyReasons** stored in DynamoDB alongside the metric
+10. **SNS** publishes alerts (with top anomaly reason) to mobile app
+11. **Mobile Dashboard** displays anomaly reasons in alert cards and history
 
 ### Anomaly Detection Logic
 ```
@@ -181,6 +209,17 @@ elif heartRate > 140 or heartRate < 40:
     ALERT (rule-based)
 ```
 
+### Anomaly Explainability
+When an anomaly is detected, the system generates **human-readable reasons** explaining *why*:
+
+| Source | Method | Example |
+|--------|--------|---------|
+| **Edge (TFLite)** | Per-feature reconstruction error | "Heart rate: 180 BPM deviates from expected pattern (72% of anomaly signal)" |
+| **Cloud (GradientBoosting)** | Range check + feature importance | "Resting heart rate: 180 BPM is above normal range (50–100 BPM)" |
+| **Threshold fallback** | Simple range checks | "Heart rate 35 BPM is dangerously low (normal: 50–100 BPM)" |
+
+Reasons flow end-to-end: stored in DynamoDB → included in SNS push body → displayed on Mobile Dashboard alert cards and history screen.
+
 ## 🔧 Configuration
 
 ### WearOS App
@@ -191,7 +230,7 @@ const val API_KEY = "YOUR_API_KEY_HERE"
 ```
 
 ### Mobile Dashboard
-[api.ts](MobileDashboard_RN/src/config/api.ts):
+[api.config.ts](MobileDashboard_RN/src/config/api.config.ts):
 ```typescript
 export const API_BASE_URL = 'https://YOUR-API-ID.execute-api.ap-south-2.amazonaws.com/prod';
 export const API_KEY = 'YOUR_API_KEY_HERE';
@@ -346,6 +385,8 @@ For questions or support, please open an issue in the repository.
 - ✅ **XGBoost Classifier** — Best activity classification model (Accuracy=85.8%) 🏆
 - ✅ **RandomForest / ExtraTrees** — Backup anomaly models (F1=0.983 / 0.966)
 - ✅ **Isolation Forest** — Unsupervised anomaly detection fallback (F1=0.491)
+- ✅ **Anomaly explainability** — Human-readable reasons for every anomaly (range checks + feature importance weighting)
+- ✅ **Feature contributions** — Per-feature contribution percentages from GradientBoosting feature_importances_
 - ✅ **Serverless inference** — Containerized Lambda with 1024MB memory
 - ✅ **S3 model storage** — 7 models stored (gradientboosting, randomforest, xgboost, extratrees, isolation_forest, activity)
 - ✅ **Hybrid scoring** — Combines edge and cloud anomaly scores
@@ -361,17 +402,19 @@ For questions or support, please open an issue in the repository.
 
 ### 🔔 Intelligent Alerting
 - ✅ **SNS topic integration** - Centralized alert distribution
-- ✅ **Expo push notifications** - Real-time alerts to mobile dashboard
+- ✅ **Expo push notifications** - Real-time alerts with anomaly reasons in push body
 - ✅ **SMS alerts** - Optional SMS notifications for critical anomalies
 - ✅ **Multi-subscriber** - Easy to add webhooks, email, etc.
 - ✅ **Haptic feedback** - On-watch vibration for immediate alerts
+- ✅ **Contextual alerts** - Push notifications include the top anomaly reason (e.g., "Heart rate 180 BPM is dangerously high")
 
 ### 📱 Mobile Dashboard (React Native)
 - ✅ **Real-time metrics** — Live display of latest health data
 - ✅ **Activity classification** — Shows detected activity (sleep/rest/walk/run/exercise) with icons
-- ✅ **Anomaly alerts** — Visual anomaly alert cards with scores
-- ✅ **Historical trends** — Grouped by date with activity + anomaly badges
-- ✅ **Push notifications** — Receives anomaly alerts from cloud
+- ✅ **Anomaly alerts** — Visual anomaly alert cards with scores and **human-readable reasons**
+- ✅ **Anomaly explainability** — Alert cards show why each anomaly occurred (source + reasons)
+- ✅ **Historical trends** — Grouped by date with activity + anomaly badges + reason tooltips
+- ✅ **Push notifications** — Receives anomaly alerts with contextual explanations
 - ✅ **Settings management** — Configure sync interval, notifications
 - ✅ **Manual data entry** — Add metrics manually for testing
 - ✅ **Offline-first** — AsyncStorage cache with mock data fallback
@@ -400,6 +443,7 @@ For questions or support, please open an issue in the repository.
 - **Lambda Functions**:
   - `HealthDataIngestion` (Python 3.9, Zip deployment, 512MB)
   - `HealthAnomalyInference` (Python 3.9, Container image, 1024MB)
+  - `HealthReadMetrics` (Python 3.9, Zip deployment, 256MB)
   - `HealthSnsToExpo` (Python 3.9, Zip deployment, 256MB)
 - **Database**: DynamoDB (Pay-per-request billing)
   - `HealthMetrics` table (userId + timestamp composite key)
@@ -412,9 +456,9 @@ For questions or support, please open an issue in the repository.
 ### ML Pipeline
 - **Training Environment**: Local (Python 3.11 with scikit-learn, XGBoost, TensorFlow 2.15)
 - **Edge Models** (TFLite):
-  - Activity Classifier: Dense NN (4 inputs → 32 → 32 → 6 outputs)
-  - Anomaly Detector: Conv1D-based autoencoder (seq_len=10, feat_dim=4)
-  - Total size: ~65KB, Quantized with DEFAULT optimization
+  - Activity Classifier: Dense NN (4 inputs → 32 → 32 → 6 outputs), ~5KB
+  - Anomaly Detector: Conv1D-based autoencoder (seq_len=10, feat_dim=4), ~16KB
+  - Total size: ~21KB, Quantized with DEFAULT optimization
 - **Cloud Models** (scikit-learn):
   - **GradientBoosting Classifier**: Best anomaly detection (F1=0.995, AUC=1.00) 🏆
   - **XGBoost Classifier**: Best activity classification (Accuracy=85.8%) 🏆
@@ -433,15 +477,16 @@ For questions or support, please open an issue in the repository.
   - `src/tests/comprehensive_ml_test.py` - Full model evaluation suite
 
 ### Mobile Dashboard
-- **Framework**: React Native 0.73 + Expo SDK 50
+- **Framework**: React Native 0.81.5 + Expo SDK 54
 - **Language**: TypeScript
 - **State Management**: Zustand (lightweight alternative to Redux)
-- **Navigation**: React Navigation 6 (Bottom Tabs)
-- **UI Components**: React Native Paper
-- **Charts**: react-native-chart-kit
+- **Navigation**: React Navigation 7 (Bottom Tabs)
+- **Icons**: @expo/vector-icons
+- **Animations**: Lottie (lottie-react-native), react-native-reanimated
+- **Graphics**: react-native-svg
 - **Notifications**: Expo Notifications + expo-device
-- **Storage**: AsyncStorage (for settings and tokens)
-- **Networking**: Axios
+- **Storage**: @react-native-async-storage/async-storage
+- **Networking**: Axios + @react-native-community/netinfo
 - **Styling**: StyleSheet with responsive design
 - **Platform Support**: iOS and Android
 
@@ -505,7 +550,7 @@ cd MobileDashboard_RN
 npm install
 
 # Update API configuration
-# Edit: src/config/api.ts
+# Edit: src/config/api.config.ts
 # Set: API_BASE_URL and API_KEY
 
 # Start development server
@@ -552,6 +597,9 @@ npx expo start
 - [x] SNS notifications with Expo push integration
 - [x] React Native mobile dashboard
 - [x] Hybrid edge-cloud anomaly detection
+- [x] Anomaly explainability — human-readable reasons from edge and cloud
+- [x] Feature contribution analysis — per-feature anomaly contributions
+- [x] Contextual push notifications — anomaly reasons in push body
 - [x] Smart data sync with WorkManager
 - [x] Auto-start service on boot
 

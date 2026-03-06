@@ -40,7 +40,7 @@ Ensure these are present (already in the project):
   - `timestamp`: Unix ms.
   - `metrics` map: includes any present of `heartRate`, `steps`, `calories`, `distance`, `batteryLevel`.
   - `deviceId`: defaults to `wear_<MODEL>`.
-- The app expects `HealthMetricResponse { success: Boolean, message: String, anomalyDetected: Boolean? }`.
+- The app expects `HealthMetricResponse { success: Boolean, message: String, anomalyDetected: Boolean?, anomalyReasons: List<String>?, anomalyScore: Float? }`.
 
 ## 7) End-to-end checklist
 - [ ] Set `ApiConfig.BASE_URL` to your backend root (with `/`).

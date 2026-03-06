@@ -91,8 +91,9 @@ npm install
 ### 2️⃣ Configure API
 Edit `src/config/api.config.ts`:
 ```typescript
-baseUrl: 'YOUR_API_ENDPOINT',
+baseUrl: 'https://u8tkgz3vsf.execute-api.ap-south-2.amazonaws.com/prod/',
 apiKey: 'YOUR_API_KEY',
+userId: 'demo-user-dhanush',
 ```
 
 ### 3️⃣ Start Development

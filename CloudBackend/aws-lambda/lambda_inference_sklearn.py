@@ -53,6 +53,18 @@ class AnomalyDetector:
     
     Also supports legacy Isolation Forest models for backward compatibility.
     """
+
+    # Feature names in model order
+    FEATURE_NAMES = ['heartRate', 'steps', 'calories', 'distance']
+    FEATURE_UNITS = {'heartRate': 'BPM', 'steps': 'steps', 'calories': 'kcal', 'distance': 'km'}
+
+    # Normal ranges for human-readable explanations (based on training data)
+    NORMAL_RANGES = {
+        'heartRate': (50, 100, 'Resting heart rate'),
+        'steps':     (0, 500, 'Steps per interval'),
+        'calories':  (0, 150, 'Calories per interval'),
+        'distance':  (0, 2.0, 'Distance per interval'),
+    }
     
     def __init__(self, model, scaler):
         self.model = model
@@ -68,29 +80,48 @@ class AnomalyDetector:
             # Supervised models (Random Forest, Gradient Boosting, etc.)
             self.threshold = 0.5  # Default probability threshold
             self.is_supervised = True
+
+        # Extract feature importances if available (GradientBoosting, RandomForest, etc.)
+        if hasattr(model, 'feature_importances_'):
+            self.feature_importances = model.feature_importances_
+        else:
+            self.feature_importances = None
         
         logger.info(f"Loaded model: {self.model_type} (supervised={self.is_supervised})")
         
     def predict(self, metrics_list):
         """
-        Score a batch of health metrics for anomalies.
+        Score a batch of health metrics for anomalies, with human-readable explanations.
         
         Args:
             metrics_list: List of dicts with keys: heart_rate, steps, calories, distance
         
         Returns:
-            List of dicts: [{"metric_id": "...", "is_anomaly": bool, "score": float}, ...]
+            List of dicts: [{
+                "metric_id": "...",
+                "is_anomaly": bool,
+                "score": float,
+                "anomaly_reasons": ["Heart rate 180 BPM is above normal range (50–100 BPM)", ...],
+                "feature_contributions": {"heartRate": 0.72, "steps": 0.15, ...}
+            }, ...]
         """
         results = []
         
         for metric in metrics_list:
             try:
+                raw_values = {
+                    'heartRate': metric.get('heart_rate', 0),
+                    'steps':     metric.get('steps', 0),
+                    'calories':  metric.get('calories', 0),
+                    'distance':  metric.get('distance', 0),
+                }
+
                 # Extract features in order: [heart_rate, steps, calories, distance]
                 features = np.array([[
-                    metric.get('heart_rate', 0),
-                    metric.get('steps', 0),
-                    metric.get('calories', 0),
-                    metric.get('distance', 0)
+                    raw_values['heartRate'],
+                    raw_values['steps'],
+                    raw_values['calories'],
+                    raw_values['distance'],
                 ]])
                 
                 # Normalize using fitted scaler
@@ -108,12 +139,19 @@ class AnomalyDetector:
                     score = float(self.model.score_samples(features_scaled)[0])
                     normalized_score = float(1.0 / (1.0 + np.exp(-score)))
                     is_anomaly = score < self.threshold
+
+                # Generate explanations
+                reasons, contributions = self._explain_anomaly(
+                    raw_values, features_scaled, is_anomaly, normalized_score
+                )
                 
                 results.append({
                     'metric_id': metric.get('metric_id', ''),
                     'is_anomaly': bool(is_anomaly),
                     'cloud_score': float(normalized_score),
-                    'model_type': self.model_type
+                    'model_type': self.model_type,
+                    'anomaly_reasons': reasons,
+                    'feature_contributions': contributions,
                 })
                 
             except Exception as e:
@@ -122,10 +160,80 @@ class AnomalyDetector:
                     'metric_id': metric.get('metric_id', ''),
                     'is_anomaly': False,
                     'cloud_score': 0.5,
+                    'anomaly_reasons': [],
+                    'feature_contributions': {},
                     'error': str(e)
                 })
         
         return results
+
+    def _explain_anomaly(self, raw_values, features_scaled, is_anomaly, score):
+        """
+        Generate human-readable explanations for why an anomaly was (or was not) detected.
+        
+        Uses two complementary strategies:
+        1. Range-based: compare raw feature values against known normal ranges.
+        2. Importance-weighted: use model feature_importances_ to rank which
+           features contributed most to the anomaly score.
+        
+        Args:
+            raw_values: dict of original feature values (unscaled)
+            features_scaled: numpy array of scaled features [1, n_features]
+            is_anomaly: bool prediction result
+            score: float anomaly probability / score
+        
+        Returns:
+            (reasons: list[str], contributions: dict[str, float])
+        """
+        reasons = []
+        contributions = {}
+
+        # --- 1. Range-based explanations (always computed) ---
+        for i, name in enumerate(self.FEATURE_NAMES):
+            val = raw_values[name]
+            lo, hi, label = self.NORMAL_RANGES[name]
+            unit = self.FEATURE_UNITS[name]
+
+            if val > hi:
+                reasons.append(
+                    f"{label}: {val:.0f} {unit} is above normal range ({lo}–{hi} {unit})"
+                )
+            elif val < lo:
+                reasons.append(
+                    f"{label}: {val:.0f} {unit} is below normal range ({lo}–{hi} {unit})"
+                )
+
+        # --- 2. Feature-importance-weighted contributions ---
+        if self.feature_importances is not None:
+            # Compute per-feature deviation from scaler mean (in std units)
+            if hasattr(self.scaler, 'mean_') and hasattr(self.scaler, 'scale_'):
+                deviations = np.abs(features_scaled[0])  # already (x - mean) / std
+                weighted = deviations * self.feature_importances
+                total = weighted.sum() if weighted.sum() > 0 else 1.0
+                for i, name in enumerate(self.FEATURE_NAMES):
+                    contributions[name] = round(float(weighted[i] / total), 4)
+
+                # If anomaly detected but no range-based reasons fired,
+                # add top-contributing feature as explanation
+                if is_anomaly and not reasons:
+                    top_idx = int(np.argmax(weighted))
+                    top_name = self.FEATURE_NAMES[top_idx]
+                    top_val = raw_values[top_name]
+                    unit = self.FEATURE_UNITS[top_name]
+                    pct = contributions[top_name] * 100
+                    reasons.append(
+                        f"Unusual {top_name} value ({top_val:.0f} {unit}) "
+                        f"contributed {pct:.0f}% to anomaly score"
+                    )
+
+        # --- 3. High-level summary ---
+        if is_anomaly and not reasons:
+            # Fallback: generic reason with the model score
+            reasons.append(
+                f"Model confidence: {score:.1%} probability of anomaly"
+            )
+
+        return reasons, contributions
 
 
 def load_model():

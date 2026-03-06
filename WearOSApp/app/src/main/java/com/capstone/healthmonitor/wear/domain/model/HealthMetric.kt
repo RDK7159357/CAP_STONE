@@ -42,7 +42,8 @@ data class HealthMetricRequest(
     val localAnomalyScore: Float = 0f,         // Rule-based score (0-1)
     val edgeAnomalyScore: Float? = null,       // TFLite/LSTM score (0-1)
     val activityState: String? = null,         // Activity class from TFLite activity model
-    val modelVersion: String? = null           // Edge model version (if available)
+    val modelVersion: String? = null,          // Edge model version (if available)
+    val anomalyReasons: List<String>? = null   // Human-readable reasons why anomaly was flagged
 )
 
 /**
@@ -52,5 +53,6 @@ data class HealthMetricResponse(
     val success: Boolean,
     val message: String,
     val anomalyDetected: Boolean = false,
-    val anomalyScore: Float = 0f  // Cloud ML model score (0-1); overrides local
+    val anomalyScore: Float = 0f,              // Cloud ML model score (0-1); overrides local
+    val anomalyReasons: List<String>? = null    // Human-readable explanations from cloud model
 )

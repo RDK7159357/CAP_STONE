@@ -118,6 +118,7 @@ def handle_single_ingestion(data):
         timestamp=data['timestamp']
     )
     anomaly_detected = anomaly_result['anomalyDetected']
+    anomaly_reasons = anomaly_result.get('anomalyReasons', [])
     if anomaly_result.get('cloudScore') is not None:
         item['cloudAnomalyScore'] = convert_floats_to_decimal(anomaly_result['cloudScore'])
         item['cloudAnomalyDetected'] = bool(anomaly_result.get('cloudDetected', False))
@@ -133,6 +134,12 @@ def handle_single_ingestion(data):
         if anomaly_result.get('cloudDetected') is not None:
             update_expression.append('cloudAnomalyDetected = :cloudDetected')
             expression_values[':cloudDetected'] = bool(anomaly_result['cloudDetected'])
+        if anomaly_reasons:
+            update_expression.append('anomalyReasons = :reasons')
+            expression_values[':reasons'] = anomaly_reasons
+        # Always store the anomaly source (edge / cloud / threshold)
+        update_expression.append('anomalySource = :source')
+        expression_values[':source'] = anomaly_result.get('source', 'none')
 
         table.update_item(
             Key={
@@ -148,7 +155,8 @@ def handle_single_ingestion(data):
             'userId': data['userId'],
             'timestamp': int(data['timestamp']),
             'metrics': data['metrics'],
-            'anomalySource': anomaly_result.get('source', 'none')
+            'anomalySource': anomaly_result.get('source', 'none'),
+            'anomalyReasons': anomaly_reasons
         })
     
     return {
@@ -156,7 +164,8 @@ def handle_single_ingestion(data):
         'message': 'Data ingested successfully',
         'anomalyDetected': anomaly_detected,
         'anomalySource': anomaly_result.get('source', 'none'),
-        'cloudScore': anomaly_result.get('cloudScore')
+        'cloudScore': anomaly_result.get('cloudScore'),
+        'anomalyReasons': anomaly_reasons
     }
 
 
@@ -190,7 +199,7 @@ def handle_batch_ingestion(data_list):
 def check_for_anomalies(metrics, edge_score=None, user_id=None, timestamp=None):
     """
     Hybrid anomaly detection: edge score -> cloud inference -> thresholds.
-    Returns a dict with anomaly status and optional cloud score.
+    Returns a dict with anomaly status, optional cloud score, and human-readable reasons.
     """
     # If edge model provided a score, use it (>=0.5 anomalous)
     if edge_score is not None:
@@ -198,11 +207,15 @@ def check_for_anomalies(metrics, edge_score=None, user_id=None, timestamp=None):
             score_f = float(edge_score)
             if score_f >= 0.5:
                 logger.warning(f"Anomaly detected via edge score: {score_f}")
+                reasons = _generate_threshold_reasons(metrics)
+                if not reasons:
+                    reasons = [f"Edge ML model flagged anomaly (score: {score_f:.2f})"]
                 return {
                     'anomalyDetected': True,
                     'source': 'edge',
                     'cloudScore': None,
-                    'cloudDetected': None
+                    'cloudDetected': None,
+                    'anomalyReasons': reasons
                 }
         except Exception:
             pass
@@ -211,19 +224,25 @@ def check_for_anomalies(metrics, edge_score=None, user_id=None, timestamp=None):
     if cloud_inference_function:
         cloud_result = invoke_cloud_inference(metrics, user_id, timestamp)
         if cloud_result is not None:
+            reasons = cloud_result.get('anomaly_reasons', [])
             if cloud_result.get('is_anomaly'):
                 logger.warning("Anomaly detected via cloud inference")
+                if not reasons:
+                    reasons = _generate_threshold_reasons(metrics)
                 return {
                     'anomalyDetected': True,
                     'source': 'cloud',
                     'cloudScore': cloud_result.get('cloud_score'),
-                    'cloudDetected': True
+                    'cloudDetected': True,
+                    'anomalyReasons': reasons,
+                    'featureContributions': cloud_result.get('feature_contributions', {})
                 }
             return {
                 'anomalyDetected': False,
                 'source': 'cloud',
                 'cloudScore': cloud_result.get('cloud_score'),
-                'cloudDetected': False
+                'cloudDetected': False,
+                'anomalyReasons': []
             }
 
     # Fallback: Simple threshold-based detection
@@ -231,19 +250,54 @@ def check_for_anomalies(metrics, edge_score=None, user_id=None, timestamp=None):
     if heart_rate is not None:
         if heart_rate > 150 or heart_rate < 40:
             logger.warning(f"Anomaly detected: Heart rate {heart_rate} BPM")
+            reasons = _generate_threshold_reasons(metrics)
             return {
                 'anomalyDetected': True,
                 'source': 'threshold',
                 'cloudScore': None,
-                'cloudDetected': None
+                'cloudDetected': None,
+                'anomalyReasons': reasons
             }
 
     return {
         'anomalyDetected': False,
         'source': 'none',
         'cloudScore': None,
-        'cloudDetected': None
+        'cloudDetected': None,
+        'anomalyReasons': []
     }
+
+
+def _generate_threshold_reasons(metrics):
+    """
+    Generate human-readable anomaly reasons by checking metric values against
+    known normal ranges. Used as a fallback when the ML model does not provide
+    its own explanations (e.g. edge-only detection, threshold fallback).
+    """
+    reasons = []
+    heart_rate = metrics.get('heartRate') or metrics.get('heart_rate')
+    steps = metrics.get('steps')
+    calories = metrics.get('calories')
+    distance = metrics.get('distance')
+
+    if heart_rate is not None:
+        if heart_rate > 150:
+            reasons.append(f"Heart rate {heart_rate} BPM is dangerously high (normal: 50–100 BPM)")
+        elif heart_rate > 100:
+            reasons.append(f"Heart rate {heart_rate} BPM is elevated (normal: 50–100 BPM)")
+        elif heart_rate < 40:
+            reasons.append(f"Heart rate {heart_rate} BPM is dangerously low (normal: 50–100 BPM)")
+        elif heart_rate < 50:
+            reasons.append(f"Heart rate {heart_rate} BPM is below normal (normal: 50–100 BPM)")
+
+    if steps is not None and steps > 500:
+        # High step count can contextualise a high heart rate
+        reasons.append(f"High activity detected ({steps} steps)")
+
+    if calories is not None and calories > 150:
+        reasons.append(f"Elevated calorie burn ({calories:.0f} kcal)")
+
+    return reasons
 
 
 def send_anomaly_notification(message):
@@ -359,7 +413,9 @@ def invoke_cloud_inference(metrics, user_id, timestamp):
         first = results[0]
         return {
             'is_anomaly': bool(first.get('is_anomaly')),
-            'cloud_score': first.get('cloud_score')
+            'cloud_score': first.get('cloud_score'),
+            'anomaly_reasons': first.get('anomaly_reasons', []),
+            'feature_contributions': first.get('feature_contributions', {})
         }
 
     except Exception as e:

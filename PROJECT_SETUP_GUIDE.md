@@ -453,7 +453,7 @@ yarn install
 Edit `src/config/api.config.ts`:
 ```typescript
 export const API_CONFIG = {
-  BASE_URL: 'https://your-api-gateway-url.amazonaws.com/prod',
+  BASE_URL: 'https://u8tkgz3vsf.execute-api.ap-south-2.amazonaws.com/prod/',
   TIMEOUT: 10000,
   HEADERS: {
     'Content-Type': 'application/json',

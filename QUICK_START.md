@@ -87,7 +87,7 @@ cd CAP_STONE/CloudBackend/aws-lambda
 
 # Configure AWS CLI
 aws configure
-# Enter your: Access Key ID, Secret Access Key, Region (us-east-1)
+# Enter your: Access Key ID, Secret Access Key, Region (ap-south-2)
 
 # Make deployment script executable
 chmod +x deploy.sh
@@ -100,7 +100,7 @@ chmod +x deploy.sh
 
 Example output:
 ```
-📍 API Endpoint: https://abc123xyz.execute-api.us-east-1.amazonaws.com/prod/health-data/ingest
+📍 API Endpoint: https://u8tkgz3vsf.execute-api.ap-south-2.amazonaws.com/prod/health-data/ingest
 ```
 
 #### Manual Deployment (If script fails)
@@ -137,8 +137,8 @@ cd CAP_STONE/WearOSApp/app/src/main/java/com/capstone/healthmonitor/wear/data/ne
 
 Replace:
 ```kotlin
-const val BASE_URL = "https://abc123xyz.execute-api.us-east-1.amazonaws.com/prod/"
-const val API_KEY = "your-api-key"  // If you set up API key authentication
+const val BASE_URL = "https://u8tkgz3vsf.execute-api.ap-south-2.amazonaws.com/prod/"
+const val API_KEY = "your-api-key"  // From deploy.sh output
 ```
 
 **Rebuild and run the app:**
@@ -182,7 +182,7 @@ yarn install
 # Update API endpoint in src/config/api.config.ts
 # Replace BASE_URL with your API Gateway URL
 export const API_CONFIG = {
-  BASE_URL: 'https://your-api-gateway-url.com',
+  BASE_URL: 'https://u8tkgz3vsf.execute-api.ap-south-2.amazonaws.com/prod/',
   // ...
 };
 

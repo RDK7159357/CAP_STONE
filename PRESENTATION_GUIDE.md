@@ -744,8 +744,8 @@ Other          0.01  0.03  0.02  0.01  0.01    0.92
    - Cross-device synchronization
 
 5. **Advanced AI Features**
-   - Explainable AI (SHAP, LIME)
-   - Causality analysis (why anomaly occurred)
+   - ~~Explainable AI~~ ✅ Implemented — anomalyReasons from edge (per-feature reconstruction error) and cloud (range check + GradientBoosting feature importance)
+   - ~~Causality analysis (why anomaly occurred)~~ ✅ Implemented — human-readable reasons stored in DynamoDB, shown on Mobile Dashboard, included in push notifications
    - Personalized health coaching
 
 6. **Healthcare Integration**

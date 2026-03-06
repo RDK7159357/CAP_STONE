@@ -41,15 +41,17 @@
 
 ## 🔄 Features Ready for Implementation
 
-### 1. **Anomaly Detection Alert Screen**
+### 1. **Anomaly Detection Alert Screen** ✅ Implemented
 ```kotlin
-// Show when anomaly is detected
+// Shows when anomaly is detected — auto-navigates to this screen
 @Composable
 fun AnomalyAlertScreen(anomaly: HealthMetric) {
-    // Red alert card
-    // Anomaly details
-    // Historical comparison
-    // Action buttons (Acknowledge, View Details)
+    // Red alert card with HR, steps, avg HR, timestamp
+    // "Why?" card listing anomalyReasons from edge/cloud ML
+    //   e.g. "Heart rate 180 BPM is dangerously high (threshold: 140 BPM)"
+    //   e.g. "heartRate deviates from expected pattern (72% of anomaly signal)"
+    // Action buttons: Acknowledge, View Details
+    // Notification includes first anomaly reason
 }
 ```
 
@@ -153,9 +155,9 @@ DataSyncWorker → API → Update isSynced flag → UI updates
 - [x] Scrollable interface
 
 ### Phase 2: Important (Recommended)
-- [ ] Anomaly alert screen
+- [x] Anomaly alert screen with explainability
 - [ ] Basic charts (heart rate trend)
-- [ ] Settings screen
+- [x] Settings screen
 - [ ] Better error handling UI
 
 ### Phase 3: Nice to Have
@@ -197,7 +199,7 @@ For current UI implementation:
 5. ✅ Responsive to data updates
 
 ### Potential Improvements
-1. **Add haptic feedback** when anomaly is detected
+1. ~~**Add haptic feedback** when anomaly is detected~~ ✅ Done
 2. **Voice feedback** option for hands-free use
 3. **Quick actions** (swipe gestures for common tasks)
 4. **Complication support** for watch faces
