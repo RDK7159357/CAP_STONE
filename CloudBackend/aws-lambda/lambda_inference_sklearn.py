@@ -223,8 +223,15 @@ def lambda_handler(event, context):
                 'body': ''
             }
         
-        # Parse request
-        body = json.loads(event.get('body', '{}'))
+        # Parse request — support both API Gateway (body as JSON string)
+        # and direct Lambda invocation (metrics at top level)
+        if 'body' in event:
+            # API Gateway event: body is a JSON-encoded string
+            body = json.loads(event['body']) if isinstance(event['body'], str) else event['body']
+        else:
+            # Direct invocation: the event IS the payload
+            body = event
+        
         metrics = body.get('metrics', [])
         
         if not metrics:

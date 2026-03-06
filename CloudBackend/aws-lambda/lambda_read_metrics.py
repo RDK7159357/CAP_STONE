@@ -15,6 +15,14 @@ table_name = os.environ.get('TABLE_NAME', 'HealthMetrics')
 table = dynamodb.Table(table_name)
 expected_api_key = os.environ.get('API_KEY', '').strip()
 
+def normalize_timestamp(ts):
+    """Convert timestamp to seconds. DynamoDB stores both seconds and milliseconds."""
+    ts = int(ts)
+    if ts > 1e12:  # milliseconds
+        ts = ts // 1000
+    return ts
+
+
 # CORS headers
 CORS_HEADERS = {
     'Access-Control-Allow-Origin': '*',
@@ -96,9 +104,10 @@ def handle_get_metrics(query_params):
             # Handle both nested and flat metric structures
             metrics_data = item.get('metrics', {}) if isinstance(item.get('metrics'), dict) else {}
             
+            ts_seconds = normalize_timestamp(item['timestamp'])
             metric = {
                 'id': f"{item['userId']}:{int(item['timestamp'])}",
-                'timestamp': datetime.fromtimestamp(int(item['timestamp'])).isoformat(),
+                'timestamp': datetime.fromtimestamp(ts_seconds).isoformat(),
                 'heartRate': float(item.get('heartRate', metrics_data.get('heartRate', 0))),
                 'steps': int(item.get('steps', metrics_data.get('steps', 0))),
                 'calories': float(item.get('calories', metrics_data.get('calories', 0))),
@@ -194,9 +203,10 @@ def handle_get_history(query_params):
             # Handle both nested and flat metric structures
             metrics_data = item.get('metrics', {}) if isinstance(item.get('metrics'), dict) else {}
             
+            ts_seconds = normalize_timestamp(item['timestamp'])
             metric = {
                 'id': f"{item['userId']}:{int(item['timestamp'])}",
-                'timestamp': datetime.fromtimestamp(int(item['timestamp'])).isoformat(),
+                'timestamp': datetime.fromtimestamp(ts_seconds).isoformat(),
                 'heartRate': float(item.get('heartRate', metrics_data.get('heartRate', 0))),
                 'steps': int(item.get('steps', metrics_data.get('steps', 0))),
                 'calories': float(item.get('calories', metrics_data.get('calories', 0))),

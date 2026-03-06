@@ -9,36 +9,36 @@ AWS-based serverless backend for receiving, storing, and processing health data 
 API Gateway → Lambda Functions → DynamoDB
                     ↓
               ML Inference Lambda
-              (Random Forest Classifier)
+              (GradientBoosting Classifier)
                     ↓
               SNS (Notifications)
 ```
 
 ## ML Model
 
-**Best Model: Random Forest Classifier** (updated Feb 2026)
+**Best Model: GradientBoosting Classifier** (updated Mar 2026)
 
 | Metric | Value |
 |--------|:-----:|
-| F1-Score | **1.0000** |
+| F1-Score | **0.9950** |
 | AUC-ROC | 1.0000 |
-| Precision | 1.0000 |
-| Recall | 1.0000 |
-| 5-fold CV F1 | 1.0000 ± 0.0000 |
+| Precision | 0.9934 |
+| Recall | 0.9967 |
+| 5-fold CV F1 | 0.9950 ± 0.0016 |
 
-- **Model file**: `best_anomaly_randomforest.pkl`
+- **Model file**: `best_anomaly_gradientboosting.pkl`
 - **Scaler file**: `best_anomaly_scaler.pkl`
-- **S3 path**: `s3://health-ml-models/randomforest/`
+- **S3 path**: `s3://health-ml-models/gradientboosting/`
 - **Features**: heartRate, steps, calories, distance
-- **Type**: Supervised ensemble classifier (200 trees)
-- **Previous model**: Isolation Forest (F1=0.89) — replaced
+- **Type**: Supervised GradientBoostingClassifier (100 estimators, max_depth=4)
+- **Previous model**: Random Forest (F1=1.00, but overfitting risk) → GradientBoosting selected for generalization
 
 ## Components
 
 1. **API Gateway**: RESTful API endpoints with API key authentication
 2. **Lambda Functions**: 
    - `HealthDataIngestion`: Receives, validates, and stores health data
-   - `HealthAnomalyInference`: Runs Random Forest anomaly detection (container, 1024MB)
+   - `HealthAnomalyInference`: Runs GradientBoosting anomaly detection (container, 1024MB)
    - `HealthSnsToExpo`: Sends push notifications via Expo
    - `HealthReadMetrics`: Reads metrics for dashboard
 3. **DynamoDB Tables**:
@@ -66,7 +66,7 @@ This automatically:
 1. Creates DynamoDB tables
 2. Creates IAM roles and policies
 3. Builds and pushes inference Docker image to ECR
-4. Uploads Random Forest model to S3
+4. Uploads GradientBoosting model to S3
 5. Creates/updates all Lambda functions
 6. Sets up API Gateway with routes
 7. Creates SNS topic and subscriptions
@@ -122,12 +122,13 @@ Register push notification token
 ```
 1. Wear OS sends metrics → API Gateway
 2. HealthDataIngestion Lambda stores to DynamoDB
-3. HealthDataIngestion invokes HealthAnomalyInference Lambda
+3. HealthDataIngestion invokes HealthAnomalyInference Lambda (direct invocation)
 4. HealthAnomalyInference:
-   a. Downloads Random Forest model from S3 (cached after first call)
-   b. Applies StandardScaler normalization
-   c. Runs model.predict_proba() for anomaly probability
-   d. Returns is_anomaly + cloud_score (0-1)
+   a. Parses event — supports both API Gateway (body wrapper) and direct invocation (raw payload)
+   b. Downloads GradientBoosting model from S3 (cached after first call)
+   c. Applies StandardScaler normalization
+   d. Runs model.predict_proba() for anomaly probability
+   e. Returns is_anomaly + cloud_score (0-1)
 5. If anomaly detected → publishes to SNS → push notification
 ```
 
@@ -139,10 +140,10 @@ Register push notification token
       "metric_id": "abc123",
       "is_anomaly": true,
       "cloud_score": 0.97,
-      "model_type": "RandomForestClassifier"
+      "model_type": "GradientBoostingClassifier"
     }
   ],
-  "model_type": "RandomForestClassifier",
+  "model_type": "GradientBoostingClassifier",
   "model_supervised": true
 }
 ```
@@ -151,10 +152,14 @@ Register push notification token
 
 ### Test Deployed Function
 
+The inference Lambda supports both direct invocation (raw payload) and API Gateway events (body wrapper):
+
 ```bash
+# Direct invocation (same format the ingestion Lambda uses)
 aws lambda invoke \
     --function-name HealthAnomalyInference \
-    --payload '{"body": "{\"metrics\": [{\"heart_rate\": 175, \"steps\": 30, \"calories\": 15, \"distance\": 0.1}]}"}' \
+    --cli-binary-format raw-in-base64-out \
+    --payload '{"metrics": [{"metric_id": "test:1", "heart_rate": 175, "steps": 30, "calories": 15, "distance": 0.1}]}' \
     response.json --region ap-south-2
 
 cat response.json
@@ -190,15 +195,26 @@ source venv/bin/activate
 python src/tests/comprehensive_ml_test.py
 
 # 2. Upload to S3
-aws s3 cp models/saved_models/best_anomaly_randomforest.pkl \
-    s3://health-ml-models/randomforest/model.pkl --region ap-south-2
+aws s3 cp models/saved_models/best_anomaly_gradientboosting.pkl \
+    s3://health-ml-models/gradientboosting/model.pkl --region ap-south-2
 
 aws s3 cp models/saved_models/best_anomaly_scaler.pkl \
-    s3://health-ml-models/randomforest/scaler.pkl --region ap-south-2
+    s3://health-ml-models/gradientboosting/scaler.pkl --region ap-south-2
 
-# 3. Clear Lambda cache (force re-download)
+# 3. Rebuild and push container (ensure numpy version matches training env)
+cd ../CloudBackend/aws-lambda
+docker build --platform linux/amd64 -f Dockerfile.inference -t health-inference-lambda:latest .
+docker tag health-inference-lambda:latest <ECR_URI>:latest
+docker push <ECR_URI>:latest
+aws lambda update-function-code --function-name HealthAnomalyInference \
+    --image-uri <ECR_URI>:latest --region ap-south-2
+
+# 4. Clear Lambda cache (force re-download)
 # The model is cached in /tmp, so updating the Lambda or waiting for cold start works
 ```
+
+> **Important**: The container's numpy version must match the training environment.
+> Currently `requirements-layer.txt` pins `numpy>=2.0.0` to match numpy 2.x used during training.
 
 ## Security
 

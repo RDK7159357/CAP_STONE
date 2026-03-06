@@ -1,6 +1,8 @@
-# AWS Lambda Deployment Guide - Isolation Forest Anomaly Detector
+# AWS Lambda Deployment Guide - GradientBoosting Anomaly Detector
 
-This guide walks through deploying the trained Isolation Forest model to AWS Lambda for real-time anomaly detection scoring.
+This guide walks through deploying the trained GradientBoosting model to AWS Lambda for real-time anomaly detection scoring.
+
+> **Note**: This guide covers manual step-by-step deployment. For one-click deployment, use `CloudBackend/aws-lambda/deploy.sh` instead.
 
 ## Overview
 
@@ -37,21 +39,21 @@ export MODEL_BUCKET="health-ml-models-xxxxxxxxxxxx"
 ```bash
 cd /Users/ramadugudhanush/Documents/CAP_STONE/MLPipeline
 
-# Create model directory in S3
-aws s3 cp models/lambda_export/model.pkl \
-  s3://$MODEL_BUCKET/isolation_forest/model.pkl
+# Upload GradientBoosting model and scaler to S3
+aws s3 cp models/saved_models/best_anomaly_gradientboosting.pkl \
+  s3://$MODEL_BUCKET/gradientboosting/model.pkl
 
-aws s3 cp models/lambda_export/metadata.json \
-  s3://$MODEL_BUCKET/isolation_forest/metadata.json
+aws s3 cp models/saved_models/best_anomaly_scaler.pkl \
+  s3://$MODEL_BUCKET/gradientboosting/scaler.pkl
 
 # Verify upload
-aws s3 ls s3://$MODEL_BUCKET/isolation_forest/
+aws s3 ls s3://$MODEL_BUCKET/gradientboosting/
 ```
 
 **Output should show:**
 ```
-2024-01-15 10:30:45       1234567 model.pkl
-2024-01-15 10:30:46          512 metadata.json
+2026-03-06 10:30:45       1234567 model.pkl
+2026-03-06 10:30:46          5678 scaler.pkl
 ```
 
 ## Step 3: Create Lambda Execution Role
@@ -149,8 +151,8 @@ aws lambda create-function \
   --memory-size 512 \
   --environment Variables="{
     MODEL_BUCKET=$MODEL_BUCKET,
-    MODEL_KEY=isolation_forest/model.pkl,
-    SCALER_KEY=isolation_forest/scaler.pkl
+    MODEL_KEY=gradientboosting/model.pkl,
+    SCALER_KEY=gradientboosting/scaler.pkl
   }"
 
 echo "✅ Lambda function created: arn:aws:lambda:*:${AWS_ACCOUNT_ID}:function:HealthAnomalyDetector"
@@ -326,7 +328,8 @@ aws logs filter-log-events \
 | `ResourceNotFoundException` for S3 model | Verify bucket name matches `MODEL_BUCKET` env var |
 | `PermissionError` accessing S3 | Check IAM role has S3 GetObject permission |
 | `ModuleNotFoundError: sklearn` | Ensure lambda-function.zip includes site-packages (run `pip install -t .`) |
-| `AttributeError: 'IsolationForest' object has no attribute 'offset'` | Already fixed in code—use `offset_` |
+| `MT19937 is not a known BitGenerator` | numpy version mismatch — models trained with numpy 2.x require `numpy>=2.0.0` in the container |
+| Inference returns 400 | Payload format mismatch — the handler supports both direct invocation (raw JSON) and API Gateway events (body wrapper) |
 | Timeout (>30s) | Increase Lambda timeout and memory (Settings → Memory) |
 
 ### Performance Metrics
@@ -384,4 +387,4 @@ aws s3 rb s3://$MODEL_BUCKET --force
 
 - [AWS Lambda Python Runtime](https://docs.aws.amazon.com/lambda/latest/dg/lambda-python.html)
 - [API Gateway REST APIs](https://docs.aws.amazon.com/apigateway/latest/developerguide/apigateway-use-lambda-authorizers.html)
-- [Scikit-learn Isolation Forest](https://scikit-learn.org/stable/modules/generated/sklearn.ensemble.IsolationForest.html)
+- [Scikit-learn GradientBoostingClassifier](https://scikit-learn.org/stable/modules/generated/sklearn.ensemble.GradientBoostingClassifier.html)

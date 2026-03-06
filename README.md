@@ -267,6 +267,12 @@ aws lambda invoke --function-name HealthDataIngestion --payload '...' out.json -
 - Check API Gateway usage plan association
 - Verify Lambda permissions for API Gateway invocation
 
+**Cloud inference returning 400:**
+- The inference Lambda supports both API Gateway events (`body` wrapper) and direct invocation (raw payload). If the ingestion Lambda calls inference via `lambda_client.invoke()`, it sends a raw payload — ensure the inference handler parses both formats.
+
+**Cloud inference returning 500 (MT19937 BitGenerator):**
+- This is a numpy version mismatch. Models pickled with numpy 2.x cannot be loaded with numpy 1.x. Ensure `requirements-layer.txt` pins `numpy>=2.0.0` and rebuild the container.
+
 **DynamoDB issues:**
 ```bash
 # Check table
