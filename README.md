@@ -22,9 +22,12 @@ This system continuously monitors vital signs from a Wear OS smartwatch using a 
 
 ### ✅ Hybrid Edge-Cloud ML
 - **Edge TFLite Models** (on-device):
-  - Activity Classifier: Classifies activities (sleep, rest, walk, run, exercise, other)
-  - LSTM Anomaly Detector: Detects patterns using sequence reconstruction
-  - Inference time: <20ms, Size: ~21KB total
+  - Activity Classifier: Dense NN (Input(4) → Normalization → Dense(32) → Dense(32) → Softmax(6)), ~5KB, <5ms inference
+    - Classifies activities: sleep, rest, walk, run, exercise, other
+    - Input: `[heartRate, steps, calories, distance]`
+    - Edge accuracy: 34.3% (cloud XGBoost achieves 85.8%); heuristic fallback when TFLite unavailable
+  - LSTM Anomaly Detector: Conv1D autoencoder (seq_len=10, feat_dim=4), ~16KB, ~20ms inference
+  - Total edge inference: <25ms, Size: ~21KB total
   
 - **Cloud Lambda Inference**:
   - GradientBoosting model (scikit-learn, F1=0.995) — best anomaly detection
@@ -374,9 +377,9 @@ For questions or support, please open an issue in the repository.
 ### 🧠 Hybrid ML Anomaly Detection
 
 **Edge Layer (On-Device TFLite)**:
-- ✅ **Activity Classifier** - Identifies 6 activity states (sleep/rest/walk/run/exercise/other)
+- ✅ **Activity Classifier** - Dense NN identifying 6 activity states (sleep/rest/walk/run/exercise/other) from `[heartRate, steps, calories, distance]` input; ~5KB, <5ms inference; 34.3% edge accuracy with heuristic fallback
 - ✅ **LSTM Anomaly Detector** - Sequence-based anomaly detection using reconstruction error
-- ✅ **Instant inference** - <20ms latency on wearable device
+- ✅ **Instant inference** - <25ms total latency on wearable device
 - ✅ **Fallback heuristics** - Rule-based detection if TFLite models unavailable
 - ✅ **Model versioning** - Tracks which model version produced each prediction
 
