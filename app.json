@@ -1,0 +1,12 @@
+{
+  "expo": {
+    "extra": {
+      "eas": {
+        "projectId": "ff215925-9e2b-4321-8572-15c30ec9f351"
+      }
+    },
+    "android": {
+      "package": "com.gaiusdude.healthmonitordashboard"
+    }
+  }
+}

@@ -1,58 +1,43 @@
 package com.capstone.healthmonitor.wear.domain.model
-
 import androidx.room.Entity
+import androidx.room.Ignore
 import androidx.room.PrimaryKey
 
-/**
- * Data model representing health metrics collected from the watch
- */
 @Entity(tableName = "health_metrics")
 data class HealthMetric(
     @PrimaryKey(autoGenerate = true)
     val id: Long = 0,
-    
     val userId: String,
-    
-    val timestamp: Long, // Unix timestamp in milliseconds
-    
-    val heartRate: Float? = null, // BPM
-    
+    val timestamp: Long,
+    val heartRate: Float? = null,
     val steps: Int? = null,
-    
-    val calories: Float? = null, // kcal
-    
-    val distance: Float? = null, // meters
-    
-    val isSynced: Boolean = false, // Track sync status
-    
-    val deviceId: String, // Unique device identifier
-    
-    val batteryLevel: Int? = null // Battery percentage at time of measurement
-)
+    val calories: Float? = null,
+    val distance: Float? = null,
+    val isSynced: Boolean = false,
+    val deviceId: String,
+    val batteryLevel: Int? = null
+) {
+    @Ignore
+    var anomalyReasons: List<String> = emptyList()
+}
 
-/**
- * API request model for sending data to cloud
- */
 data class HealthMetricRequest(
     val userId: String,
     val timestamp: Long,
     val metrics: Map<String, Any>,
     val deviceId: String,
-    val isAnomalous: Boolean = false,          // Flagged by edge detector (rules or TFLite)
-    val localAnomalyScore: Float = 0f,         // Rule-based score (0-1)
-    val edgeAnomalyScore: Float? = null,       // TFLite/LSTM score (0-1)
-    val activityState: String? = null,         // Activity class from TFLite activity model
-    val modelVersion: String? = null,          // Edge model version (if available)
-    val anomalyReasons: List<String>? = null   // Human-readable reasons why anomaly was flagged
+    val isAnomalous: Boolean = false,
+    val localAnomalyScore: Float = 0f,
+    val edgeAnomalyScore: Float? = null,
+    val activityState: String? = null,
+    val modelVersion: String? = null,
+    val anomalyReasons: List<String>? = null
 )
 
-/**
- * API response model
- */
 data class HealthMetricResponse(
     val success: Boolean,
     val message: String,
     val anomalyDetected: Boolean = false,
-    val anomalyScore: Float = 0f,              // Cloud ML model score (0-1); overrides local
-    val anomalyReasons: List<String>? = null    // Human-readable explanations from cloud model
+    val anomalyScore: Float = 0f,
+    val anomalyReasons: List<String>? = null
 )

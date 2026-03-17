@@ -34,7 +34,7 @@ coverage
 # Build artifacts
 *.jks
 *.p12
-.gradle
+
 local.properties
 
 # OS

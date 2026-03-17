@@ -11,15 +11,11 @@
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
-    "assetBundlePatterns": [
-      "**/*"
-    ],
+    "assetBundlePatterns": ["**/*"],
     "ios": {
       "supportsTabletMode": true,
       "bundleIdentifier": "com.healthmonitor.dashboard",
-      "config": {
-        "usesNonExemptEncryption": false
-      }
+      "config": { "usesNonExemptEncryption": false }
     },
     "android": {
       "adaptiveIcon": {
@@ -28,31 +24,17 @@
       },
       "package": "com.healthmonitor.dashboard"
     },
-    "web": {
-      "favicon": "./assets/favicon.png"
-    },
-    "plugins": [
-      [
-        "expo-notifications",
-        {
-          "icon": "./assets/notification-icon.png",
-          "color": "#ffffff"
-        }
-      ],
-      "expo-asset"
-    ],
-    "notification": {
-      "icon": "./assets/notification-icon.png",
-      "color": "#1f5cdb"
-    },
+    "web": { "favicon": "./assets/favicon.png" },
+    "plugins": [["expo-notifications", {"icon": "./assets/notification-icon.png", "color": "#ffffff"}], "expo-asset"],
+    "notification": {"icon": "./assets/notification-icon.png", "color": "#1f5cdb"},
     "extra": {
       "apiBaseUrl": "https://u8tkgz3vsf.execute-api.ap-south-2.amazonaws.com/prod",
       "apiKey": "27tpgpLoMk7A8mDknvE8S8AhzwBeS6fm1U7KpQhT",
       "userId": "user_001",
       "eas": {
-        "projectId": "78f21863-a420-4bbf-9164-d95d1d46242b"
+        "projectId": "6762b878-6481-4111-9137-f81ef0d34eab"
       }
     },
-    "owner": "rdk7"
+    "owner": "gaiusdude"
   }
 }

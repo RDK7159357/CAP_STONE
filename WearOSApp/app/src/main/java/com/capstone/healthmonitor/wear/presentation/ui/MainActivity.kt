@@ -4,7 +4,6 @@ import android.Manifest
 import android.app.ActivityManager
 import android.app.NotificationChannel
 import android.app.NotificationManager
-import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -62,7 +61,6 @@ import androidx.wear.compose.material.Scaffold
 import androidx.wear.compose.material.Text
 import androidx.wear.compose.material.TimeText
 import androidx.wear.compose.material.ToggleChip
-// Slider and TextField from regular Compose for non-Wear compatibility
 import androidx.compose.material.Slider
 import androidx.compose.material.TextField as ComposeTextField
 import androidx.compose.material.Card as RegularCard
@@ -77,6 +75,7 @@ import com.capstone.healthmonitor.wear.data.local.SettingsDataStore
 import com.capstone.healthmonitor.wear.data.local.SettingsState
 import com.capstone.healthmonitor.wear.data.repository.HealthRepository
 import com.capstone.healthmonitor.wear.domain.model.HealthMetric
+import com.capstone.healthmonitor.wear.domain.usecase.LocalAnomalyDetector
 import com.capstone.healthmonitor.wear.domain.usecase.TfLiteSanityCheck
 import com.capstone.healthmonitor.wear.service.DataSyncWorker
 import com.capstone.healthmonitor.wear.service.HealthMonitoringService
@@ -89,6 +88,9 @@ import kotlin.math.max
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import androidx.compose.material.ExperimentalMaterialApi
+
+// Direct property accessor — HealthMetric now declares anomalyReasons.
+private fun HealthMetric.safeAnomalyReasons(): List<String> = anomalyReasons
 
 @OptIn(ExperimentalMaterialApi::class)
 @AndroidEntryPoint
@@ -103,11 +105,14 @@ class MainActivity : ComponentActivity() {
     @Inject
     lateinit var tfLiteSanityCheck: TfLiteSanityCheck
 
+    @Inject
+    lateinit var localAnomalyDetector: LocalAnomalyDetector
+
     companion object {
         private const val TAG = "MainActivity"
         private const val MIN_SYNC_INTERVAL_MINUTES = 15
         private const val DEFAULT_SYNC_INTERVAL_MINUTES = 15
-        private const val DEFAULT_USER_ID = "demo-user-dhanush"
+        private const val DEFAULT_USER_ID = "user_001"
     }
 
     private val defaultDeviceId: String by lazy { "wear_${Build.MODEL}" }
@@ -136,10 +141,8 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Run TFLite sanity checks at startup
         tfLiteSanityCheck.runChecks()
 
-        // Start monitoring automatically
         checkPermissionsAndStart(DEFAULT_SYNC_INTERVAL_MINUTES)
 
         setContent {
@@ -147,6 +150,7 @@ class MainActivity : ComponentActivity() {
                 HealthMonitorScreen(
                     healthMetricsFlow = healthRepository.getLatestMetrics(50),
                     healthRepository = healthRepository,
+                    localAnomalyDetector = localAnomalyDetector,
                     defaultUserId = DEFAULT_USER_ID,
                     defaultDeviceId = defaultDeviceId,
                     onScheduleSyncChange = { interval -> scheduleDataSync(interval) },
@@ -171,13 +175,9 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun startMonitoring(intervalMinutes: Int) {
-        // Start foreground service
         val serviceIntent = Intent(this, HealthMonitoringService::class.java)
         ContextCompat.startForegroundService(this, serviceIntent)
-
-        // Schedule periodic data sync
         scheduleDataSync(intervalMinutes)
-
         Log.d(TAG, "Health monitoring started")
     }
 
@@ -235,6 +235,7 @@ fun HealthMonitorTheme(content: @Composable () -> Unit) {
 fun HealthMonitorScreen(
     healthMetricsFlow: Flow<List<HealthMetric>> = emptyFlow(),
     healthRepository: HealthRepository,
+    localAnomalyDetector: LocalAnomalyDetector = LocalAnomalyDetector(),
     defaultUserId: String,
     defaultDeviceId: String,
     onScheduleSyncChange: (Int) -> Unit,
@@ -254,11 +255,10 @@ fun HealthMonitorScreen(
     val context = LocalContext.current
     var isServiceRunning by remember { mutableStateOf(false) }
 
-    // Check service status periodically
     LaunchedEffect(Unit) {
         while (true) {
             isServiceRunning = isHealthServiceRunning(context)
-            delay(3000) // Check every 3 seconds
+            delay(3000)
         }
     }
 
@@ -270,23 +270,38 @@ fun HealthMonitorScreen(
         dataRetentionDays = settingsState.dataRetentionDays.toFloat()
     }
 
-    val healthMetrics by healthMetricsFlow.collectAsState(initial = emptyList())
-    val latestMetric = healthMetrics.firstOrNull()
-    // Anomaly detection: check anomalyReasons from edge/cloud ML, fall back to HR threshold
-    val anomalyMetric = healthMetrics.firstOrNull {
-        !it.anomalyReasons.isNullOrEmpty() || (it.heartRate ?: 0f) >= 140f
+    val rawHealthMetrics by healthMetricsFlow.collectAsState(initial = emptyList())
+
+    // Enrich metrics loaded from DB with in-memory anomaly reasons via LocalAnomalyDetector.
+    // DB-loaded HealthMetric objects always have anomalyReasons = emptyList() (field is @Ignore),
+    // so we re-compute them here for display purposes.
+    val healthMetrics = remember(rawHealthMetrics) {
+        rawHealthMetrics.mapIndexed { index, metric ->
+            val recentPrior = rawHealthMetrics.drop(index + 1)
+            val reasons = localAnomalyDetector.getAnomalyReasons(metric, recentPrior)
+            if (reasons != metric.anomalyReasons) metric.also { it.anomalyReasons = reasons } else metric
+        }
     }
+
+    val latestMetric = healthMetrics.firstOrNull()
+
+    // Anomaly detection: check anomalyReasons (now populated) or fall back to threshold
+    val anomalyMetric = healthMetrics.firstOrNull {
+        it.safeAnomalyReasons().isNotEmpty() || (it.heartRate ?: 0f) >= 140f
+    }
+
     val heartRateList = healthMetrics.mapNotNull { it.heartRate }
     val averageHeartRate = if (heartRateList.isNotEmpty()) {
         heartRateList.average().toFloat()
     } else {
         0f
     }
+
     LaunchedEffect(anomalyMetric?.id, notificationsEnabled, hapticsEnabled) {
         val newId = anomalyMetric?.id
         if (newId != null && newId != lastAnomalyId) {
             Log.d("AnomalyDetection", "New anomaly detected! HR: ${anomalyMetric?.heartRate} BPM, ID: $newId")
-            
+
             if (hapticsEnabled) {
                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                 Log.d("AnomalyDetection", "Haptic feedback triggered")
@@ -295,11 +310,10 @@ fun HealthMonitorScreen(
                 sendAnomalyNotification(context, anomalyMetric)
                 Log.d("AnomalyDetection", "Notification sent")
             }
-            
-            // Auto-navigate to Anomaly Alert screen to show the alert
+
             currentScreen = Screen.Anomaly
             Log.d("AnomalyDetection", "Navigated to Anomaly Alert screen")
-            
+
             lastAnomalyId = newId
         }
     }
@@ -318,7 +332,8 @@ fun HealthMonitorScreen(
             isServiceRunning = isServiceRunning,
             healthRepository = healthRepository,
             defaultUserId = defaultUserId,
-            defaultDeviceId = defaultDeviceId
+            defaultDeviceId = defaultDeviceId,
+            localAnomalyDetector = localAnomalyDetector
         )
 
         Screen.Anomaly -> AnomalyAlertScreen(
@@ -387,7 +402,8 @@ private fun HomeScreen(
     isServiceRunning: Boolean,
     healthRepository: HealthRepository,
     defaultUserId: String,
-    defaultDeviceId: String
+    defaultDeviceId: String,
+    localAnomalyDetector: LocalAnomalyDetector
 ) {
     val listState = rememberScalingLazyListState()
     val scope = rememberCoroutineScope()
@@ -401,7 +417,6 @@ private fun HomeScreen(
             state = listState,
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // 1. Header Section
             item { Spacer(modifier = Modifier.height(28.dp)) }
 
             item {
@@ -415,7 +430,6 @@ private fun HomeScreen(
 
             item { Spacer(modifier = Modifier.height(12.dp)) }
 
-            // 2. Status Indicators - Background Monitoring
             item {
                 WearCard(
                     modifier = Modifier.fillMaxWidth(0.9f),
@@ -470,12 +484,10 @@ private fun HomeScreen(
 
             item { Spacer(modifier = Modifier.height(10.dp)) }
 
-            // 3. Latest Metrics Display (Large Heart Rate)
             if (latestMetric != null) {
                 item {
                     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
                         Text(text = "❤️", style = MaterialTheme.typography.display1)
-                        // Safe conversion to Int for display
                         val hrValue = latestMetric.heartRate?.toInt() ?: 0
                         Text(text = "$hrValue", style = MaterialTheme.typography.display1, color = Color(0xFFE74C3C))
                         Text(text = "BPM", style = MaterialTheme.typography.caption1, color = Color.Gray)
@@ -484,7 +496,6 @@ private fun HomeScreen(
 
                 item { Spacer(modifier = Modifier.height(12.dp)) }
 
-                // 4. Steps and Calories Grid
                 item {
                     Row(
                         modifier = Modifier.fillMaxWidth(0.9f),
@@ -507,7 +518,6 @@ private fun HomeScreen(
 
                 item { Spacer(modifier = Modifier.height(12.dp)) }
 
-                // 5. Battery and Storage Stats
                 if (latestMetric.batteryLevel != null) {
                     item {
                         val batteryColor = if (latestMetric.batteryLevel < 20) Color(0xFFE74C3C) else Color.Gray
@@ -522,7 +532,6 @@ private fun HomeScreen(
 
                 item { Spacer(modifier = Modifier.height(12.dp)) }
 
-                // 6. Anomaly Chip
                 if (anomalyMetric != null) {
                     item {
                         Chip(
@@ -536,14 +545,12 @@ private fun HomeScreen(
                     item { Spacer(modifier = Modifier.height(10.dp)) }
                 }
 
-                // 7. Recent History Section
                 item {
                     Text(text = "Recent History", style = MaterialTheme.typography.caption1, color = MaterialTheme.colors.primary)
                 }
 
                 item { Spacer(modifier = Modifier.height(6.dp)) }
 
-                // FIXED: Using 'items' DSL instead of manual 'forEach' to prevent recomposition crashes
                 items(healthMetrics.take(5)) { metric ->
                     val displayHr = metric.heartRate?.toInt() ?: 0
                     val displaySteps = metric.steps ?: 0
@@ -551,7 +558,7 @@ private fun HomeScreen(
 
                     RegularCard(
                         modifier = Modifier.fillMaxWidth(0.9f).padding(vertical = 2.dp),
-                        onClick = { /* Could navigate to detail view */ }
+                        onClick = {}
                     ) {
                         Row(
                             modifier = Modifier.fillMaxWidth().padding(8.dp),
@@ -570,11 +577,9 @@ private fun HomeScreen(
                     }
                 }
             } else {
-                // Initial State
                 item { Text(text = "Waiting for data...", color = Color.Gray) }
             }
 
-            // 8. Navigation Buttons
             item { Spacer(modifier = Modifier.height(12.dp)) }
 
             item {
@@ -593,14 +598,13 @@ private fun HomeScreen(
                 }
             }
 
-            // 9. Test Anomaly Button
             item { Spacer(modifier = Modifier.height(6.dp)) }
 
             item {
                 Chip(
                     onClick = {
-                        scope.launch {
-                            createTestAnomaly(healthRepository, defaultUserId, defaultDeviceId)
+                        kotlinx.coroutines.MainScope().launch {
+                            createTestAnomaly(healthRepository, defaultUserId, defaultDeviceId, localAnomalyDetector)
                         }
                     },
                     label = { Text("Test Anomaly") },
@@ -622,6 +626,12 @@ private fun AnomalyAlertScreen(
     onViewHistory: () -> Unit
 ) {
     val listState = rememberScalingLazyListState()
+
+    // Collect anomaly reasons safely outside of ScalingLazyColumn DSL
+    val reasons: List<String> = remember(anomaly) {
+        anomaly?.safeAnomalyReasons() ?: emptyList()
+    }
+
     Scaffold(timeText = { TimeText() }) {
         ScalingLazyColumn(
             modifier = Modifier
@@ -652,22 +662,30 @@ private fun AnomalyAlertScreen(
                     }
                 }
 
-                // Show anomaly reasons if available
-                val reasons = anomaly.anomalyReasons
-                if (!reasons.isNullOrEmpty()) {
+                // Show anomaly reasons if available — uses items() DSL, no forEach inside item {}
+                if (reasons.isNotEmpty()) {
                     item { Spacer(modifier = Modifier.height(6.dp)) }
+
                     item {
                         WearCard(modifier = Modifier.fillMaxWidth(0.9f), onClick = {}) {
                             Column(modifier = Modifier.padding(12.dp)) {
-                                Text(text = "Why?", fontWeight = FontWeight.Bold, color = Color(0xFFF39C12), style = MaterialTheme.typography.caption1)
+                                Text(
+                                    text = "Why?",
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFFF39C12),
+                                    style = MaterialTheme.typography.caption1
+                                )
                                 Spacer(modifier = Modifier.height(4.dp))
-                                reasons.forEach { reason ->
-                                    Text(
-                                        text = "• $reason",
-                                        style = MaterialTheme.typography.caption2,
-                                        color = Color.LightGray
-                                    )
-                                    Spacer(modifier = Modifier.height(2.dp))
+                                // Render all reasons inside a single item using Column — safe for Composables
+                                Column {
+                                    reasons.forEach { reason ->
+                                        Text(
+                                            text = "• $reason",
+                                            style = MaterialTheme.typography.caption2,
+                                            color = Color.LightGray
+                                        )
+                                        Spacer(modifier = Modifier.height(2.dp))
+                                    }
                                 }
                             }
                         }
@@ -776,11 +794,7 @@ private fun TrendChart(values: List<Float>, modifier: Modifier = Modifier) {
             val x = if (values.size == 1) size.width / 2 else size.width * index / (values.size - 1).toFloat()
             val normalized = (value - minValue) / range
             val y = size.height * (1f - normalized)
-            if (index == 0) {
-                path.moveTo(x, y)
-            } else {
-                path.lineTo(x, y)
-            }
+            if (index == 0) path.moveTo(x, y) else path.lineTo(x, y)
         }
 
         drawPath(
@@ -818,8 +832,7 @@ private fun SettingsScreen(
             item { Spacer(modifier = Modifier.height(18.dp)) }
             item { Text("Settings", style = MaterialTheme.typography.title3, color = MaterialTheme.colors.primary) }
             item { Spacer(modifier = Modifier.height(6.dp)) }
-            
-            // Info about automatic monitoring
+
             item {
                 WearCard(
                     modifier = Modifier.fillMaxWidth(0.9f),
@@ -885,19 +898,19 @@ private fun SettingsScreen(
             }
 
             item { Spacer(modifier = Modifier.height(10.dp)) }
-                    item {
-                        Button(
-                            onClick = { onApply(syncInterval) },
-                            modifier = Modifier.fillMaxWidth(0.8f)
-                        ) { Text("Apply", modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)) }
-                    }
+            item {
+                Button(
+                    onClick = { onApply(syncInterval) },
+                    modifier = Modifier.fillMaxWidth(0.8f)
+                ) { Text("Apply", modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)) }
+            }
             item { Spacer(modifier = Modifier.height(6.dp)) }
-                    item {
-                        Button(
-                            onClick = onBack,
-                            modifier = Modifier.fillMaxWidth(0.8f)
-                        ) { Text("Back", modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)) }
-                    }
+            item {
+                Button(
+                    onClick = onBack,
+                    modifier = Modifier.fillMaxWidth(0.8f)
+                ) { Text("Back", modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)) }
+            }
             item { Spacer(modifier = Modifier.height(22.dp)) }
         }
     }
@@ -1064,7 +1077,6 @@ private fun buildCsv(metrics: List<HealthMetric>): String {
     if (metrics.isEmpty()) return "No data available"
     val header = "timestamp,heartRate,steps,calories,isSynced"
     val rows = metrics.joinToString("\n") { metric ->
-        // Ensure every field has a default value for the CSV string
         val ts = formatTime(metric.timestamp)
         val hr = metric.heartRate ?: 0f
         val st = metric.steps ?: 0
@@ -1092,7 +1104,7 @@ private fun sendAnomalyNotification(context: Context, anomaly: HealthMetric?) {
     }
 
     // Use first anomaly reason if available, otherwise generic HR text
-    val reasonText = anomaly.anomalyReasons?.firstOrNull()
+    val reasonText = anomaly.safeAnomalyReasons().firstOrNull()
         ?: "HR ${(anomaly.heartRate ?: 0f).toInt()} BPM at ${formatTime(anomaly.timestamp)}"
 
     val builder = NotificationCompat.Builder(context, ANOMALY_CHANNEL_ID)
@@ -1102,7 +1114,6 @@ private fun sendAnomalyNotification(context: Context, anomaly: HealthMetric?) {
         .setPriority(NotificationCompat.PRIORITY_HIGH)
         .setAutoCancel(true)
 
-    // Check notification permission before posting (required on Android 13+)
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
         ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
     ) {
@@ -1112,13 +1123,11 @@ private fun sendAnomalyNotification(context: Context, anomaly: HealthMetric?) {
 
 private enum class Screen { Home, Anomaly, Trends, Settings, ManualEntry, Export }
 
-// Helper function to format timestamp
 private fun formatTime(timestamp: Long): String {
     val sdf = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault())
     return sdf.format(java.util.Date(timestamp))
 }
 
-// Helper function to check if HealthMonitoringService is running
 private fun isHealthServiceRunning(context: Context): Boolean {
     val activityManager = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
     @Suppress("DEPRECATION")
@@ -1127,35 +1136,47 @@ private fun isHealthServiceRunning(context: Context): Boolean {
     }
 }
 
-/**
- * Creates a test anomaly metric to demonstrate the anomaly detection system
- * Generates a synthetic metric with elevated heart rate (155 BPM) to trigger detection
- */
 private suspend fun createTestAnomaly(
     healthRepository: HealthRepository,
     userId: String,
-    deviceId: String
+    deviceId: String,
+    anomalyDetector: LocalAnomalyDetector
 ) {
     Log.d("TestAnomaly", "Creating test anomaly metric with HR=155 BPM (threshold=140)")
-    
-    val testMetric = HealthMetric(
+
+    // Build the metric first (without reasons) so we can pass it to the detector
+    val baseMetric = HealthMetric(
         userId = userId,
         timestamp = System.currentTimeMillis(),
-        heartRate = 155f,  // Above the 140 BPM anomaly threshold
-        steps = 1200,      // Moderate activity
-        calories = 95f,    // Some activity
-        distance = 0.8f,   // In meters
+        heartRate = 155f,
+        steps = 1200,
+        calories = 95f,
+        distance = 0.8f,
         deviceId = deviceId,
         isSynced = false,
         batteryLevel = 85
     )
-    
+
+    // Compute reasons and attach them so the UI can display the "Why?" card
+    val reasons = anomalyDetector.getAnomalyReasons(baseMetric)
+    val testMetric = baseMetric.apply { anomalyReasons = reasons }
+
+    Log.d("TestAnomaly", "Anomaly reasons: $reasons")
+
     val result = healthRepository.saveMetric(testMetric)
     if (result.isSuccess) {
         Log.d("TestAnomaly", "✓ Test anomaly metric saved successfully!")
         Log.d("TestAnomaly", "Expected behavior: Anomaly Alert screen should appear + haptics + notification")
+        val syncResult = healthRepository.syncMetricsToCloud()
+        if (syncResult.isSuccess) {
+            Log.d("TestAnomaly", "? Synced to cloud!")
+        } else {
+            Log.e("TestAnomaly", "? Cloud sync failed: ${syncResult.exceptionOrNull()?.message}")
+        }
     } else {
         Log.e("TestAnomaly", "✗ Failed to create test anomaly: ${result.exceptionOrNull()?.message}")
     }
 }
+
+
 
