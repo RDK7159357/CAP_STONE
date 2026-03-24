@@ -1,0 +1,88 @@
+% Chapter 8: Mobile Dashboard
+\section{Cross-Platform Mobile Health Dashboard}
+
+\subsection{Technology Stack}
+React Native 0.81.5 + Expo SDK 54 + TypeScript. State: Zustand. Navigation: React Navigation 7 (Bottom Tabs). Storage: AsyncStorage (offline cache). Notifications: Expo Notifications. HTTP: Axios. Icons: Expo Vector Icons. Animations: Lottie + react-native-reanimated.
+
+\subsection{Three-Screen Architecture}
+\textbf{HomeScreen:} Real-time metrics (MetricCards for HR, steps, calories), anomaly alert cards with human-readable reasons, activity classification display with icons. \textbf{HistoryScreen:} Temporal trends grouped by date, activity + anomaly badges, anomaly reason tooltips. \textbf{SettingsScreen:} Sync interval configuration, notification preferences, manual data entry.
+
+\subsection{Offline-First Strategy}
+Data fetching priority: AsyncStorage cache $\rightarrow$ API fetch $\rightarrow$ mock data fallback. Ensures dashboard remains functional during connectivity gaps.
+
+\subsection{Push Notification Integration}
+On startup: Expo generates push token $\rightarrow$ POST to \texttt{/notifications/register} $\rightarrow$ stored in DynamoDB. On anomaly: cloud sends push via Expo API with anomaly reasons in the notification body.
+
+\subsection{Performance Results}
+
+\begin{table}[H]
+\centering
+\caption{Mobile Dashboard Performance}
+\label{tab:mobile_perf}
+\begin{tabular}{lcc}
+\toprule
+\textbf{Metric} & \textbf{Measured} & \textbf{Target} \\
+\midrule
+Initial render (cold) & 480ms & $<$500ms \\
+Initial render (warm) & 120ms & $<$200ms \\
+Scrolling FPS & 60fps & 60fps \\
+API fetch (p50) & 85ms & $<$200ms \\
+Memory usage (peak) & 78MB & $<$150MB \\
+Bundle size & 12MB & $<$25MB \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Flutter to React Native Migration}
+The project migrated from Flutter (Dart) to React Native (TypeScript) for better ecosystem integration. Outcomes: 42 files, 2,500+ LOC, full feature parity with faster build times (30s vs 45s) and simpler state management (Zustand vs Provider).
+
+%% ============================================================
+% Chapter 9: Privacy and Security
+\section{Privacy-Preserving Edge-First Architecture}
+
+\subsection{Edge-First Privacy Design}
+Primary ML inference occurs on-device; only aggregated metrics + ML-derived insights are transmitted to the cloud. Raw continuous sensor streams never leave the watch. Periodic snapshots (every 15--60 min) contain HR values, step counts, edge activity labels, and anomaly scores---no raw accelerometer data, no GPS, no continuous streams.
+
+\subsection{Security Controls}
+\textbf{Transit:} TLS 1.2+ (HTTPS-only). \textbf{Authentication:} API key via X-API-Key header at API Gateway. \textbf{Storage:} DynamoDB server-side encryption (AES-256, AWS KMS), S3 bucket-level encryption. \textbf{Access Control:} IAM least-privilege policies per Lambda function.
+
+\subsection{Regulatory Compliance}
+
+\begin{table}[H]
+\centering
+\caption{Regulatory Compliance Status}
+\label{tab:compliance}
+\begin{tabular}{llcc}
+\toprule
+\textbf{Regulation} & \textbf{Requirement} & \textbf{Status} & \textbf{Gap} \\
+\midrule
+HIPAA & Encryption at rest & Met & None \\
+HIPAA & Access controls & Met & Audit logs \\
+GDPR & Data minimization & Met & None \\
+GDPR & Right to erasure & Partial & No API \\
+DPDPA & Data localization & Met & ap-south-2 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Privacy Comparison}
+
+\begin{table}[H]
+\centering
+\caption{Privacy Comparison with Commercial Systems}
+\label{tab:privacy}
+\begin{tabular}{lcccc}
+\toprule
+\textbf{Feature} & \textbf{Apple} & \textbf{Fitbit} & \textbf{Samsung} & \textbf{Ours} \\
+\midrule
+Edge processing & Partial & No & Partial & \textbf{Yes} \\
+Data minimization & Med & Low & Med & \textbf{High} \\
+Open-source & No & No & No & \textbf{Yes} \\
+Self-hostable & No & No & No & \textbf{Yes} \\
+Auditability & Low & Low & Low & \textbf{Full} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Proposed Enhancements}
+Future work includes: end-to-end encryption (AES-256-GCM at application level), differential privacy for aggregated statistics ($\epsilon$-differential privacy with Laplace mechanism), and federated learning for collaborative model training without sharing raw data \cite{federated, dp}.

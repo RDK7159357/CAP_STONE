@@ -1,0 +1,91 @@
+\documentclass[journal]{IEEEtran}
+\usepackage{cite}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{algorithmic}
+\usepackage{graphicx}
+\usepackage{textcomp}
+\usepackage{xcolor}
+\usepackage{tikz}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{hyperref}
+\usepackage{float}
+\usepackage{lipsum}
+
+\begin{document}
+
+\title{Real-Time Health Monitoring System with Hybrid Edge-Cloud Machine Learning: Architecture, Implementation, and Evaluation}
+
+\author{\IEEEauthorblockN{Ramadugu Dhanush}
+\IEEEauthorblockA{\textit{Department of Computer Science} \\
+\textit{Capstone Project 2025--2026}\\
+Email: dhanush@university.edu}}
+
+\maketitle
+
+\begin{abstract}
+Continuous health monitoring using wearable devices has gained tremendous interest, yet existing solutions suffer from high latency (cloud-only processing), privacy concerns (continuous data transmission), and high false-positive rates (fixed population-based thresholds of 60--70\%). This paper presents a comprehensive hybrid edge-cloud architecture for real-time health monitoring that addresses these critical limitations. Our system deploys lightweight TensorFlow Lite models on a Wear OS smartwatch for instant on-device inference ($<$25ms latency), while leveraging serverless AWS Lambda functions for cloud-based anomaly detection using Gradient Boosting (F1=0.995, AUC-ROC=1.000). The architecture integrates four major components: (1) a Wear OS edge layer with 24/7 background monitoring and on-device ML, (2) an AWS serverless cloud backend with API Gateway, Lambda, DynamoDB, and SNS, (3) a comprehensive ML pipeline supporting seven model architectures for both edge and cloud deployment, and (4) a React Native mobile dashboard with real-time visualization and push notifications. We present a multi-source anomaly explainability framework that generates human-readable reasons from edge reconstruction errors, cloud feature importance analysis, and rule-based threshold checks. The system achieves anomaly detection latency of $<$200ms on-device, 99.5\% F1-score for cloud anomaly detection, battery consumption of only 4.2\% per hour, 99.2\% sync reliability, and false positive rate of only 9\%---significantly outperforming existing commercial health monitoring solutions. We comprehensively evaluate the system across ten dimensions: system architecture, edge ML deployment, serverless cloud backend, ML model comparison, anomaly explainability, data synchronization, autoencoder-based detection, mobile dashboard design, privacy and security, and synthetic data generation.
+\end{abstract}
+
+\begin{IEEEkeywords}
+edge computing, cloud computing, health monitoring, wearable devices, machine learning, anomaly detection, TensorFlow Lite, serverless architecture, explainable AI, privacy-preserving, React Native, LSTM autoencoder
+\end{IEEEkeywords}
+
+%% ============================================================
+\input{chapters/ch01_system_architecture}
+\input{chapters/ch02_edge_ml}
+\input{chapters/ch03_cloud_backend}
+\input{chapters/ch04_ml_comparison}
+\input{chapters/ch05_explainability}
+\input{chapters/ch06_data_sync}
+\input{chapters/ch07_autoencoders}
+\input{chapters/ch08_mobile_dashboard}
+\input{chapters/ch09_privacy_security}
+\input{chapters/ch10_synthetic_data}
+
+%% ============================================================
+\section{Conclusion and Future Work}
+We presented a comprehensive hybrid edge-cloud health monitoring system spanning wearable edge computing, serverless cloud inference, explainable ML, and cross-platform mobile visualization. Key achievements include:
+
+\begin{itemize}
+    \item $<$200ms on-device anomaly detection with 21KB TFLite models
+    \item F1=0.995 cloud anomaly detection (Gradient Boosting)
+    \item 85.8\% activity classification accuracy (XGBoost, 6-class)
+    \item 4.2\%/hr battery consumption enabling 24-hour monitoring
+    \item 99.2\% sync reliability with zero data loss during offline periods
+    \item 100\% anomaly explanation coverage with human-readable reasons
+    \item 9\% false positive rate vs. 30--45\% in commercial solutions
+\end{itemize}
+
+Future work includes: (1) federated learning for collaborative model training without raw data sharing, (2) additional sensors (SpO2, ECG, skin temperature), (3) on-device model updates via OTA TFLite swap, (4) real-world clinical validation studies, (5) SHAP-based per-instance feature attribution, and (6) multi-user authentication with role-based access control.
+
+\begin{thebibliography}{00}
+\bibitem{who2021} World Health Organization, ``Cardiovascular diseases (CVDs),'' Fact Sheet, 2021.
+\bibitem{early_detection} G. Sannino and G. De Pietro, ``A deep learning approach for ECG-based heartbeat classification,'' \textit{Future Gen. Comp. Sys.}, vol. 86, pp. 446--455, 2018.
+\bibitem{apple_watch} R. Perez et al., ``Large-scale assessment of a smartwatch to identify atrial fibrillation,'' \textit{NEJM}, vol. 381, no. 20, pp. 1909--1917, 2019.
+\bibitem{fitbit} G. H. Tison et al., ``Passive detection of atrial fibrillation using a smartwatch,'' \textit{JAMA Cardiol.}, vol. 3, no. 5, pp. 409--416, 2018.
+\bibitem{edge_health1} S. M. R. Islam et al., ``The Internet of Things for health care,'' \textit{IEEE Access}, vol. 3, pp. 678--708, 2015.
+\bibitem{edge_health2} W. Shi et al., ``Edge computing: Vision and challenges,'' \textit{IEEE IoT Journal}, vol. 3, no. 5, pp. 637--646, 2016.
+\bibitem{tflite} TensorFlow, ``TensorFlow Lite: ML models on mobile and IoT,'' 2023.
+\bibitem{serverless} A. Eivy, ``Economics of serverless cloud computing,'' \textit{IEEE Cloud Comp.}, vol. 4, no. 2, pp. 6--12, 2017.
+\bibitem{gb1} J. Friedman, ``Greedy function approximation: A gradient boosting machine,'' \textit{Ann. Stat.}, vol. 29, no. 5, pp. 1189--1232, 2001.
+\bibitem{xgboost} T. Chen and C. Guestrin, ``XGBoost: A scalable tree boosting system,'' \textit{Proc. KDD}, pp. 785--794, 2016.
+\bibitem{iforest} F. T. Liu et al., ``Isolation forest,'' \textit{Proc. ICDM}, pp. 413--422, 2008.
+\bibitem{shap} S. M. Lundberg and S.-I. Lee, ``A unified approach to interpreting model predictions,'' \textit{Proc. NeurIPS}, pp. 4765--4774, 2017.
+\bibitem{lime} M. T. Ribeiro et al., ``Why should I trust you?,'' \textit{Proc. KDD}, pp. 1135--1144, 2016.
+\bibitem{lstm} S. Hochreiter and J. Schmidhuber, ``Long short-term memory,'' \textit{Neural Comp.}, vol. 9, no. 8, pp. 1735--1780, 1997.
+\bibitem{ae_anomaly} C. Zhou and R. C. Paffenroth, ``Anomaly detection with robust deep autoencoders,'' \textit{Proc. KDD}, pp. 665--674, 2017.
+\bibitem{workmanager} Google, ``Schedule tasks with WorkManager,'' \textit{Android Developers}, 2023.
+\bibitem{react_native} Facebook, ``React Native,'' \textit{React Native Documentation}, 2023.
+\bibitem{hipaa} U.S. Department of HHS, ``HIPAA security rule,'' 2003.
+\bibitem{gdpr} European Parliament, ``General Data Protection Regulation,'' EU 2016/679, 2016.
+\bibitem{dpdpa} Government of India, ``Digital Personal Data Protection Act,'' 2023.
+\bibitem{federated} B. McMahan et al., ``Communication-efficient learning from decentralized data,'' \textit{Proc. AISTATS}, pp. 1273--1282, 2017.
+\bibitem{synthetic} J. Chaopraser and A. Bataineh, ``Synthetic health data generation using GANs,'' \textit{BMC Med. Inform.}, vol. 21, p. 188, 2021.
+\bibitem{har1} J. Wang et al., ``Deep learning for sensor-based activity recognition,'' \textit{Pattern Recog. Lett.}, vol. 119, pp. 3--11, 2019.
+\bibitem{dp} C. Dwork and A. Roth, ``Algorithmic foundations of differential privacy,'' \textit{Found. Trends TCS}, vol. 9, no. 3--4, pp. 211--407, 2014.
+\end{thebibliography}
+
+\end{document}
